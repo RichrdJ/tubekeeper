@@ -20,6 +20,11 @@
     <label>Controleer elke (minuten)<input type="number" min="5" name="interval_minutes" value="{{ s.interval_minutes if s else 60 }}"></label>
     <label>Alleen uploads vanaf<input type="date" name="only_after" value="{{ (s.only_after if s else '') | isodate }}"></label>
     <label>Bewaar alleen de nieuwste N<input type="number" min="0" name="keep_last" value="{{ s.keep_last if s and s.keep_last else '' }}" placeholder="leeg = alles bewaren"></label>
+    <label>Mapindeling
+      <select name="layout">
+        <option value="series" {{ 'selected' if not s or s.layout == 'series' }}>Plex/Jellyfin serie (op datum)</option>
+        <option value="flat" {{ 'selected' if s and s.layout == 'flat' }}>Eén map, datum in bestandsnaam</option>
+      </select></label>
     <label>Taal van titels
       <input name="lang" value="{{ s.lang if s else '' }}" list="langs"
              placeholder="{{ 'automatisch' ~ (' (' ~ s.lang_detected ~ ')' if s and s.lang_detected else '') }}">

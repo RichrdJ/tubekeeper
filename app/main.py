@@ -93,6 +93,7 @@ async def _source_from_form(request):
         "keep_last": int(keep_last) if keep_last.isdigit() and int(keep_last) > 0 else None,
         "sub_langs": str(form.get("sub_langs", "")).strip(),
         "lang": str(form.get("lang", "")).strip(),
+        "layout": "series" if form.get("layout") == "series" else "flat",
         "backfill": 1 if form.get("backfill") else 0,
         "enabled": 1 if form.get("enabled") else 0,
     }
@@ -120,9 +121,9 @@ async def create_source(request: Request):
     s = await _source_from_form(request)
     cur = db.execute(
         "INSERT INTO sources (name, url, kind, quality, audio_format, interval_minutes, only_after, "
-        "keep_last, sub_langs, lang, backfill, enabled, created_at) "
+        "keep_last, sub_langs, lang, layout, backfill, enabled, created_at) "
         "VALUES (:name, :url, :kind, :quality, :audio_format, :interval_minutes, :only_after, "
-        ":keep_last, :sub_langs, :lang, :backfill, :enabled, :created_at)",
+        ":keep_last, :sub_langs, :lang, :layout, :backfill, :enabled, :created_at)",
         s | {"created_at": worker.now_iso()},
     )
     worker.request_check(cur.lastrowid)
@@ -146,15 +147,18 @@ def source_detail(request: Request, source_id: int, status: str = ""):
 
 @app.post("/sources/{source_id}")
 async def update_source(request: Request, source_id: int):
-    _source_or_404(source_id)
+    old = _source_or_404(source_id)
     s = await _source_from_form(request)
     db.execute(
         "UPDATE sources SET name = :name, url = :url, kind = :kind, quality = :quality, "
         "audio_format = :audio_format, interval_minutes = :interval_minutes, only_after = :only_after, "
-        "keep_last = :keep_last, sub_langs = :sub_langs, lang = :lang, backfill = :backfill, enabled = :enabled "
+        "keep_last = :keep_last, sub_langs = :sub_langs, lang = :lang, layout = :layout, "
+        "backfill = :backfill, enabled = :enabled "
         "WHERE id = :id",
         s | {"id": source_id},
     )
+    if s["layout"] != old["layout"] or s["name"] != old["name"]:
+        worker.reorganize_async(source_id, old_dir=worker.source_dir(old))
     worker.request_check(source_id)  # picks up a changed URL or title language right away
     worker.wake_downloads()
     return back(f"/sources/{source_id}")

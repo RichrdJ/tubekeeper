@@ -6,6 +6,7 @@ import re
 import threading
 import time
 import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 
 import yt_dlp
@@ -60,6 +61,22 @@ def name_from_url(url):
 
 def safe_name(name):
     return re.sub(r'[\\/:*?"<>|]+', "_", name).strip(" .") or "source"
+
+
+def _episode_number(src, upload_date, exclude_id=None):
+    """MMDD + per-day counter, e.g. 092401: Plex sorts it by date and same-day uploads don't collide."""
+    n = db.one(
+        "SELECT COUNT(*) AS n FROM media WHERE source_id = ? AND upload_date = ? AND status = 'done' AND id != ?",
+        (src["id"], upload_date, exclude_id or 0),
+    )["n"]
+    return f"{upload_date[4:8]}{n + 1:02d}"
+
+
+def series_template(src, upload_date, episode):
+    """Plex/Jellyfin TV layout: <Source>/Season YYYY/<Source> - SYYYYE<MMDDnn> - Title [id].ext"""
+    show = safe_name(src["name"]).replace("%", "%%")
+    return (f"Season {upload_date[:4]}/{show} - S{upload_date[:4]}E{episode} - "
+            "%(title).150B [%(id)s].%(ext)s")
 
 
 def source_dir(src):
@@ -230,6 +247,8 @@ def index_source(src):
             "UPDATE sources SET last_checked = ?, last_error = NULL WHERE id = ?",
             (now_iso(), src["id"]),
         )
+        if src["layout"] == "series":
+            save_show_art(src, info)
         if src["name"] == src["url"]:
             title = info.get("channel") or info.get("uploader") or info.get("title")
             if title:
@@ -363,6 +382,9 @@ def download_one(media):
             db.execute("UPDATE media SET status = 'downloading', error = NULL, title = ?, upload_date = ? "
                        "WHERE id = ?", (title, upload_date, media["id"]))
             current["progress"] = "0%"
+            if src["layout"] == "series" and upload_date:
+                episode = _episode_number(src, upload_date, media["id"])
+                ydl.params["outtmpl"] = {"default": series_template(src, upload_date, episode)}
             ydl.process_ie_result(info, download=True)
         db.execute(
             "UPDATE media SET status = 'done', filepath = ?, downloaded_at = ? WHERE id = ?",
@@ -393,6 +415,81 @@ def delete_files(filepath):
             os.remove(f)
         except OSError as e:
             log.warning("Could not delete %s: %s", f, e)
+
+
+def _download_image(url, path):
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=20) as resp, open(path, "wb") as f:
+            f.write(resp.read())
+    except Exception as e:  # noqa: BLE001 - artwork is optional
+        log.warning("Could not save %s: %s", path, e)
+
+
+def save_show_art(src, info):
+    """Channel avatar as show poster and banner as background, for Plex 'local media assets'."""
+    thumbs = {t.get("id"): t.get("url") for t in info.get("thumbnails") or [] if t.get("url")}
+    folder = source_dir(src)
+    for filename, key in (("poster.jpg", "avatar_uncropped"), ("fanart.jpg", "banner_uncropped")):
+        path = os.path.join(folder, filename)
+        if thumbs.get(key) and not os.path.exists(path):
+            _download_image(thumbs[key], path)
+
+
+def reorganize(source_id, old_dir=None):
+    """Move finished downloads into the source's current folder name and layout."""
+    src = db.one("SELECT * FROM sources WHERE id = ?", (source_id,))
+    if not src:
+        return
+    rows = db.query(
+        "SELECT * FROM media WHERE source_id = ? AND status = 'done' AND filepath IS NOT NULL "
+        "ORDER BY COALESCE(upload_date, ''), id", (source_id,))
+    per_day = {}
+    moved = 0
+    for row in rows:
+        old = row["filepath"]
+        if not os.path.exists(old):
+            continue
+        ext = os.path.splitext(old)[1]
+        title = yt_dlp.utils.sanitize_filename(row["title"] or row["video_id"])[:150]
+        date = row["upload_date"]
+        if src["layout"] == "series" and date:
+            per_day[date] = per_day.get(date, 0) + 1
+            rel = (f"Season {date[:4]}/{safe_name(src['name'])} - S{date[:4]}E{date[4:8]}{per_day[date]:02d} - "
+                   f"{title} [{row['video_id']}]")
+        else:
+            prefix = f"{date[:4]}-{date[4:6]}-{date[6:8]} - " if date else ""
+            rel = f"{prefix}{title} [{row['video_id']}]"
+        new_stem = os.path.join(source_dir(src), rel)
+        old_stem = os.path.splitext(old)[0]
+        if new_stem == old_stem:
+            continue
+        os.makedirs(os.path.dirname(new_stem), exist_ok=True)
+        for f in glob.glob(glob.escape(old_stem) + ".*"):
+            os.replace(f, new_stem + f[len(old_stem):])
+        db.execute("UPDATE media SET filepath = ? WHERE id = ?", (new_stem + ext, row["id"]))
+        moved += 1
+    # Leftovers: artwork from a renamed folder, and empty folders
+    for base in {d for d in (old_dir, source_dir(src)) if d and os.path.isdir(d)}:
+        if base != source_dir(src):
+            for art in ("poster.jpg", "fanart.jpg"):
+                if os.path.exists(os.path.join(base, art)) and not os.path.exists(os.path.join(source_dir(src), art)):
+                    os.replace(os.path.join(base, art), os.path.join(source_dir(src), art))
+        for root, _dirs, _files in sorted(os.walk(base), key=lambda x: -len(x[0])):
+            if not os.listdir(root):
+                os.rmdir(root)
+    _size_cache.clear()
+    log.info("Reorganized %s: %d files moved", src["name"], moved)
+
+
+def reorganize_async(source_id, old_dir=None):
+    def run():
+        try:
+            reorganize(source_id, old_dir)
+        except Exception:  # noqa: BLE001
+            log.exception("Reorganize failed")
+    threading.Thread(target=run, daemon=True).start()
 
 
 def enforce_retention(src):

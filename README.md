@@ -16,7 +16,22 @@ mapstructuur die Plex/Jellyfin/Emby direct oppakken.
 - yt-dlp wordt bij elke containerstart automatisch bijgewerkt
 - Optioneel `cookies.txt` in `/config` voor leeftijdsbeperkte/members-only video's
 
-Bestanden komen in: `/downloads/<Bronnaam>/2026-09-24 - Titel [videoId].mp4`
+Bestanden komen standaard in een Plex/Jellyfin-vriendelijke serie-indeling:
+
+```
+/downloads/<Bron>/poster.jpg
+/downloads/<Bron>/Season 2026/<Bron> - S2026E092401 - Titel [videoId].mp4
+```
+Seizoen = uploadjaar, aflevering = maand+dag+volgnummer, dus Plex sorteert op uploaddatum.
+Per bron kun je ook kiezen voor één map met de datum in de bestandsnaam. Wissel je van indeling
+of hernoem je een bron, dan worden bestaande bestanden automatisch verplaatst.
+
+## Plex instellen
+1. **Bibliotheek toevoegen → TV-programma's**, map: je `/downloads`-map.
+2. **Geavanceerd**: Scanner *Plex Series Scanner*, Agent *Personal Media Shows*.
+3. Onder **Instellingen → Agents → Shows → Personal Media Shows**: *Local Media Assets* bovenaan.
+Plex toont dan elk kanaal als serie met het kanaallogo als poster, jaren als seizoenen, en
+thumbnails per aflevering.
 
 ## Installeren via Portainer
 

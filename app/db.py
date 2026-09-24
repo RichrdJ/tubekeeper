@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS sources (
     sub_langs        TEXT NOT NULL DEFAULT '',
     backfill         INTEGER NOT NULL DEFAULT 0,      -- download existing videos on first index
     enabled          INTEGER NOT NULL DEFAULT 1,
+    layout           TEXT NOT NULL DEFAULT 'flat',    -- flat | series (Plex/Jellyfin TV show)
     lang             TEXT NOT NULL DEFAULT '',        -- title language; '' = detect automatically
     lang_detected    TEXT,
     last_checked     TEXT,
@@ -78,6 +79,8 @@ def init():
         columns = {r["name"] for r in c.execute("PRAGMA table_info(sources)")}
         if "lang" not in columns:
             c.execute("ALTER TABLE sources ADD COLUMN lang TEXT NOT NULL DEFAULT ''")
+        if "layout" not in columns:
+            c.execute("ALTER TABLE sources ADD COLUMN layout TEXT NOT NULL DEFAULT 'flat'")
         if "lang_detected" not in columns:
             c.execute("ALTER TABLE sources ADD COLUMN lang_detected TEXT")
         # Downloads interrupted by a restart go back into the queue
