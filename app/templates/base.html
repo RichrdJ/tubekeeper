@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}TubeKeeper{% endblock %}</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --fg:#e6e8ec; --muted:#8b93a3;
+          --accent:#e5484d; --ok:#30a46c; --warn:#f5a524; --err:#e5484d; --info:#3e8ed0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; }
+  a { color:inherit; }
+  header { display:flex; align-items:center; gap:24px; padding:12px 24px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header .logo { font-weight:700; font-size:18px; text-decoration:none; }
+  header .logo span { color:var(--accent); }
+  header nav a { color:var(--muted); text-decoration:none; margin-right:16px; }
+  header nav a:hover { color:var(--fg); }
+  #status { margin-left:auto; color:var(--muted); font-size:13px; }
+  main { max-width:1200px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:22px; margin:0 0 16px; } h2 { font-size:17px; margin:24px 0 12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:13px; }
+  .muted { color:var(--muted); } .small { font-size:13px; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:12px; background:var(--line); }
+  .b-done { background:#193b2d; color:#5bd69a; } .b-pending { background:#3a2e12; color:var(--warn); }
+  .b-downloading { background:#132d45; color:#6cb6f5; } .b-error { background:#3f1a1c; color:#ff8589; }
+  .b-skipped, .b-deleted { color:var(--muted); }
+  .btn { display:inline-block; background:var(--line); color:var(--fg); border:0; border-radius:7px;
+         padding:6px 12px; font:inherit; font-size:14px; cursor:pointer; text-decoration:none; }
+  .btn:hover { filter:brightness(1.25); } .btn.primary { background:var(--accent); }
+  .btn.small { padding:2px 8px; font-size:12px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  form.inline { display:inline; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px 16px; }
+  label { display:block; font-size:13px; color:var(--muted); }
+  input, select { width:100%; margin-top:4px; background:var(--bg); color:var(--fg); border:1px solid var(--line);
+                  border-radius:7px; padding:7px 9px; font:inherit; }
+  input[type=checkbox] { width:auto; margin:0 6px 0 0; vertical-align:middle; }
+  label.check { color:var(--fg); display:flex; align-items:center; margin-top:22px; }
+  .err { color:#ff8589; font-size:13px; word-break:break-word; }
+  .tabs a { margin-right:12px; color:var(--muted); text-decoration:none; font-size:14px; }
+  .tabs a.active { color:var(--fg); border-bottom:2px solid var(--accent); }
+  details summary { cursor:pointer; color:var(--muted); }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="/">Tube<span>Keeper</span></a>
+  <nav><a href="/">Bronnen</a><a href="/queue">Wachtrij</a></nav>
+  <div id="status">…</div>
+</header>
+<main>{% block content %}{% endblock %}</main>
+<script>
+async function poll() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    const parts = [];
+    if (s.indexing) parts.push('🔎 ' + s.indexing);
+    if (s.current) parts.push('⬇️ ' + s.current.title + ' — ' + s.current.progress + (s.current.speed ? ' @ ' + s.current.speed : ''));
+    parts.push(s.pending + ' in wachtrij');
+    document.getElementById('status').textContent = parts.join('  ·  ');
+  } catch (e) {}
+}
+poll(); setInterval(poll, 3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+services:
+  tubekeeper:
+    build: .
+    image: tubekeeper:latest
+    container_name: tubekeeper
+    restart: unless-stopped
+    ports:
+      - "8945:8945"
+    environment:
+      - TZ=Europe/Amsterdam
+      - PUID=1000                # eigenaar van de gedownloade bestanden
+      - PGID=1000
+      - YTDLP_AUTO_UPDATE=true   # yt-dlp bijwerken bij elke start
+      # - RECHECK_LIMIT=50       # aantal nieuwste items per controle
+      # - OUTPUT_TEMPLATE=%(upload_date>%Y-%m-%d)s - %(title).150B [%(id)s].%(ext)s
+    volumes:
+      - ./config:/config                 # database, cookies.txt
+      - /pad/naar/media/youtube:/downloads   # <-- aanpassen: je Plex/Jellyfin map

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_form.html" import source_form %}
+{% block title %}{{ src.name }} · TubeKeeper{% endblock %}
+{% block content %}
+<div class="row" style="justify-content:space-between">
+  <h1>{{ src.name }} {% if not src.enabled %}<span class="badge">gepauzeerd</span>{% endif %}</h1>
+  <div class="row">
+    <form class="inline" method="post" action="/sources/{{ src.id }}/check"><button class="btn primary">Nu controleren</button></form>
+    {% if counts.get('error') %}<form class="inline" method="post" action="/sources/{{ src.id }}/retry"><button class="btn">Fouten opnieuw proberen ({{ counts.error }})</button></form>{% endif %}
+    {% if counts.get('skipped') %}<form class="inline" method="post" action="/sources/{{ src.id }}/download-skipped"
+      onsubmit="return confirm('Alle {{ counts.skipped }} overgeslagen items downloaden?')"><button class="btn">Overgeslagen downloaden ({{ counts.skipped }})</button></form>{% endif %}
+  </div>
+</div>
+<p class="muted small">{{ src.url }} · laatst gecontroleerd {{ src.last_checked | dt }}</p>
+{% if src.last_error %}<p class="err">⚠ {{ src.last_error }}</p>{% endif %}
+
+<div class="tabs" style="margin:16px 0">
+  <a href="?" class="{{ 'active' if not status }}">Alles ({{ counts.values() | sum }})</a>
+  {% for st, label in [('done','Gedownload'),('pending','Wachtrij'),('error','Fouten'),('skipped','Overgeslagen'),('deleted','Verwijderd')] %}
+    {% if counts.get(st) %}<a href="?status={{ st }}" class="{{ 'active' if status == st }}">{{ label }} ({{ counts[st] }})</a>{% endif %}
+  {% endfor %}
+</div>
+
+<div class="card scroll">
+{% if media %}
+<table>
+  <tr><th>Datum</th><th>Titel</th><th>Status</th><th></th></tr>
+  {% for m in media %}
+  <tr>
+    <td class="small" style="white-space:nowrap">{{ m.upload_date | date }}</td>
+    <td><a href="{{ m.url }}" target="_blank" rel="noopener">{{ m.title or m.video_id }}</a>
+      {% if m.filepath and m.status == 'done' %}<div class="muted small">{{ m.filepath }}</div>{% endif %}
+      {% if m.error %}<div class="err">{{ m.error[:300] }}</div>{% endif %}</td>
+    <td><span class="badge b-{{ m.status }}">{{ m.status }}</span></td>
+    <td style="white-space:nowrap">
+      {% if m.status in ('skipped','error','deleted') %}
+        <form class="inline" method="post" action="/media/{{ m.id }}/download"><button class="btn small">Download</button></form>{% endif %}
+      {% if m.status in ('pending','error') %}
+        <form class="inline" method="post" action="/media/{{ m.id }}/skip"><button class="btn small">Overslaan</button></form>{% endif %}
+      {% if m.status == 'done' %}
+        <form class="inline" method="post" action="/media/{{ m.id }}/delete" onsubmit="return confirm('Bestand verwijderen?')"><button class="btn small">Verwijder bestand</button></form>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Nog geen items{% if not src.last_checked %} — de eerste controle loopt, ververs zo de pagina{% endif %}.</p>
+{% endif %}
+</div>
+
+<h2>Instellingen</h2>
+{{ source_form(src, "/sources/" ~ src.id, "Opslaan") }}
+
+<h2>Verwijderen</h2>
+<form method="post" action="/sources/{{ src.id }}/delete" class="card row" onsubmit="return confirm('Bron {{ src.name }} verwijderen?')">
+  <label class="check" style="margin:0"><input type="checkbox" name="delete_files">Ook gedownloade bestanden verwijderen</label>
+  <button class="btn">Bron verwijderen</button>
+</form>
+{% endblock %}

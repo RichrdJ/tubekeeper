@@ -1,0 +1,70 @@
+# TubeKeeper
+
+Lichtgewicht, zelf-gehost alternatief voor Pinchflat. Volgt YouTube-kanalen en -playlists,
+controleert periodiek op nieuwe uploads en downloadt ze automatisch met **yt-dlp**, in een
+mapstructuur die Plex/Jellyfin/Emby direct oppakken.
+
+## Functies
+- Kanalen, playlists of losse video's toevoegen via een web-UI (poort **8945**)
+- Per bron: max. kwaliteit (360p–4K/beste), video of alleen audio (m4a/mp3/opus), controle-interval
+- Alleen nieuwe uploads, of ook de bestaande backlog (per stuk of in één keer)
+- Filter "alleen uploads vanaf datum" en "bewaar alleen de nieuwste N" (oudere bestanden worden opgeruimd)
+- Ondertitels embedden, metadata + hoofdstukken + thumbnail embedden, `.jpg` poster naast het bestand
+- Wachtrij met live voortgang, fouten opnieuw proberen, premières/livestreams worden later opgepakt
+- yt-dlp wordt bij elke containerstart automatisch bijgewerkt
+- Optioneel `cookies.txt` in `/config` voor leeftijdsbeperkte/members-only video's
+
+Bestanden komen in: `/downloads/<Bronnaam>/2026-09-24 - Titel [videoId].mp4`
+
+## Installeren via Portainer
+
+Portainer kan geen lokale bouwmap gebruiken in de web editor, dus kies één van deze routes:
+
+### Optie A — Stack vanuit Git-repository (makkelijkst)
+1. Zet deze map in een (privé) Git-repo (GitHub, Gitea, …).
+2. Portainer → **Stacks → Add stack → Repository**.
+3. Repository URL invullen, *Compose path*: `docker-compose.yml`.
+4. Pas onder de volumes `/pad/naar/media/youtube` aan naar je mediamap (en eventueel PUID/PGID).
+5. **Deploy the stack**. Portainer bouwt het image zelf.
+
+### Optie B — Kant-en-klaar image via GitHub Actions
+De workflow in `.github/workflows/docker.yml` bouwt bij elke push een image (amd64 + arm64)
+naar `ghcr.io/<gebruiker>/<repo>:latest`. Gebruik dan in Portainer → **Web editor**:
+
+```yaml
+services:
+  tubekeeper:
+    image: ghcr.io/<gebruiker>/<repo>:latest
+    container_name: tubekeeper
+    restart: unless-stopped
+    ports: ["8945:8945"]
+    environment:
+      - TZ=Europe/Amsterdam
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /pad/naar/config/tubekeeper:/config
+      - /pad/naar/media/youtube:/downloads
+```
+(Bij een privé-package: registry `ghcr.io` toevoegen in Portainer met een PAT.)
+
+### Optie C — Zelf bouwen op de Docker-host
+```
+docker build -t tubekeeper:latest .
+```
+en daarna in Portainer de stack uit optie B gebruiken met `image: tubekeeper:latest`.
+
+## Omgevingsvariabelen
+| Variabele | Standaard | Uitleg |
+|---|---|---|
+| `TZ` | – | Tijdzone voor de UI |
+| `PUID` / `PGID` | (root) | Gebruiker/groep die eigenaar wordt van de bestanden |
+| `YTDLP_AUTO_UPDATE` | `true` | yt-dlp bijwerken bij start |
+| `RECHECK_LIMIT` | `50` | Na de eerste volledige scan: hoeveel nieuwste items per controle |
+| `OUTPUT_TEMPLATE` | zie boven | yt-dlp output-template (relatief t.o.v. de bronmap) |
+| `LOG_LEVEL` | `INFO` | |
+
+## Tips
+- Krijg je "Sign in to confirm you're not a bot"? Exporteer YouTube-cookies (bv. met de extensie
+  "Get cookies.txt LOCALLY") naar `/config/cookies.txt` en herstart de container.
+- Jellyfin/Plex: voeg `/downloads` toe als bibliotheek van het type *Home videos / Other videos*.

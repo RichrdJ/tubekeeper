@@ -1,0 +1,29 @@
+{% macro source_form(s, action, submit) %}
+<form method="post" action="{{ action }}" class="card">
+  <div class="grid">
+    <label>Naam<input name="name" value="{{ s.name if s else '' }}" placeholder="bv. Veritasium" required></label>
+    <label style="grid-column: span 2">URL (kanaal, playlist of video)
+      <input name="url" value="{{ s.url if s else '' }}" placeholder="https://www.youtube.com/@kanaal" required></label>
+    <label>Type
+      <select name="kind">
+        <option value="video" {{ 'selected' if not s or s.kind == 'video' }}>Video</option>
+        <option value="audio" {{ 'selected' if s and s.kind == 'audio' }}>Alleen audio</option>
+      </select></label>
+    <label>Max. videokwaliteit
+      <select name="quality">
+        {% for q in qualities %}<option value="{{ q }}" {{ 'selected' if (s.quality if s else '1080') == q }}>{{ 'Beste' if q == 'best' else q ~ 'p' }}</option>{% endfor %}
+      </select></label>
+    <label>Audioformaat (bij audio)
+      <select name="audio_format">
+        {% for f in audio_formats %}<option {{ 'selected' if (s.audio_format if s else 'm4a') == f }}>{{ f }}</option>{% endfor %}
+      </select></label>
+    <label>Controleer elke (minuten)<input type="number" min="5" name="interval_minutes" value="{{ s.interval_minutes if s else 60 }}"></label>
+    <label>Alleen uploads vanaf<input type="date" name="only_after" value="{{ (s.only_after if s else '') | isodate }}"></label>
+    <label>Bewaar alleen de nieuwste N<input type="number" min="0" name="keep_last" value="{{ s.keep_last if s and s.keep_last else '' }}" placeholder="leeg = alles bewaren"></label>
+    <label>Ondertitels (talen)<input name="sub_langs" value="{{ s.sub_langs if s else '' }}" placeholder="bv. nl,en"></label>
+    <label class="check"><input type="checkbox" name="backfill" {{ 'checked' if s and s.backfill }}>Bestaande video's ook downloaden</label>
+    <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if not s or s.enabled }}>Actief</label>
+  </div>
+  <div class="row" style="margin-top:14px"><button class="btn primary">{{ submit }}</button></div>
+</form>
+{% endmacro %}

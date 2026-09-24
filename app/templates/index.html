@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_form.html" import source_form %}
+{% block content %}
+<h1>Bronnen</h1>
+<div class="card scroll">
+{% if sources %}
+<table>
+  <tr><th>Naam</th><th>Type</th><th>Gedownload</th><th>Wachtrij</th><th>Fouten</th><th>Laatst gecontroleerd</th><th></th></tr>
+  {% for s in sources %}
+  <tr>
+    <td><a href="/sources/{{ s.id }}"><strong>{{ s.name }}</strong></a>
+      {% if not s.enabled %}<span class="badge">gepauzeerd</span>{% endif %}
+      <div class="muted small">{{ s.url }}</div>
+      {% if s.last_error %}<div class="err">⚠ {{ s.last_error[:160] }}</div>{% endif %}</td>
+    <td>{{ 'Audio · ' ~ s.audio_format if s.kind == 'audio' else ('Beste' if s.quality == 'best' else s.quality ~ 'p') }}</td>
+    <td>{{ s.n_done or 0 }}</td>
+    <td>{{ s.n_pending or 0 }}</td>
+    <td>{% if s.n_error %}<span class="badge b-error">{{ s.n_error }}</span>{% else %}0{% endif %}</td>
+    <td class="small">{{ s.last_checked | dt }}<div class="muted">elke {{ s.interval_minutes }} min</div></td>
+    <td><form class="inline" method="post" action="/sources/{{ s.id }}/check"><button class="btn small">Nu controleren</button></form></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">Nog geen bronnen. Voeg hieronder een YouTube-kanaal of playlist toe.</p>
+{% endif %}
+</div>
+
+<h2>Bron toevoegen</h2>
+{{ source_form(None, "/sources", "Toevoegen") }}
+<p class="muted small">Tip: zonder "Bestaande video's ook downloaden" worden alleen <em>nieuwe</em> uploads vanaf nu gedownload.
+Oudere video's kun je later alsnog per stuk of in één keer ophalen.</p>
+{% endblock %}

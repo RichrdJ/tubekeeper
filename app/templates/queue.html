@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Wachtrij · TubeKeeper{% endblock %}
+{% block content %}
+<h1>Wachtrij</h1>
+<div class="card scroll">
+{% if pending %}
+<table>
+  <tr><th>Datum</th><th>Bron</th><th>Titel</th></tr>
+  {% for m in pending %}
+  <tr><td class="small">{{ m.upload_date | date }}</td><td><a href="/sources/{{ m.source_id }}">{{ m.source_name }}</a></td>
+      <td>{{ m.title or m.video_id }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}<p class="muted">De wachtrij is leeg.</p>{% endif %}
+</div>
+
+<h2>Recent</h2>
+<div class="card scroll">
+<table>
+  <tr><th>Tijd</th><th>Bron</th><th>Titel</th><th>Status</th></tr>
+  {% for m in recent %}
+  <tr><td class="small" style="white-space:nowrap">{{ (m.downloaded_at or m.created_at) | dt }}</td>
+      <td><a href="/sources/{{ m.source_id }}">{{ m.source_name }}</a></td>
+      <td>{{ m.title or m.video_id }}{% if m.error %}<div class="err">{{ m.error[:200] }}</div>{% endif %}</td>
+      <td><span class="badge b-{{ m.status }}">{{ m.status }}</span></td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}
