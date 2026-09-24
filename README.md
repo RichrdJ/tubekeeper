@@ -29,12 +29,12 @@ Portainer kan geen lokale bouwmap gebruiken in de web editor, dus kies één van
 
 ### Optie B — Kant-en-klaar image via GitHub Actions
 De workflow in `.github/workflows/docker.yml` bouwt bij elke push een image (amd64 + arm64)
-naar `ghcr.io/<gebruiker>/<repo>:latest`. Gebruik dan in Portainer → **Web editor**:
+naar `ghcr.io/richrdj/tubekeeper:latest`. Gebruik dan in Portainer → **Web editor**:
 
 ```yaml
 services:
   tubekeeper:
-    image: ghcr.io/<gebruiker>/<repo>:latest
+    image: ghcr.io/richrdj/tubekeeper:latest
     container_name: tubekeeper
     restart: unless-stopped
     ports: ["8945:8945"]
