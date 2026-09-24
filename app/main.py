@@ -92,6 +92,7 @@ async def _source_from_form(request):
         "only_after": str(form.get("only_after", "")).replace("-", "") or None,
         "keep_last": int(keep_last) if keep_last.isdigit() and int(keep_last) > 0 else None,
         "sub_langs": str(form.get("sub_langs", "")).strip(),
+        "lang": str(form.get("lang", "")).strip(),
         "backfill": 1 if form.get("backfill") else 0,
         "enabled": 1 if form.get("enabled") else 0,
     }
@@ -119,9 +120,9 @@ async def create_source(request: Request):
     s = await _source_from_form(request)
     cur = db.execute(
         "INSERT INTO sources (name, url, kind, quality, audio_format, interval_minutes, only_after, "
-        "keep_last, sub_langs, backfill, enabled, created_at) "
+        "keep_last, sub_langs, lang, backfill, enabled, created_at) "
         "VALUES (:name, :url, :kind, :quality, :audio_format, :interval_minutes, :only_after, "
-        ":keep_last, :sub_langs, :backfill, :enabled, :created_at)",
+        ":keep_last, :sub_langs, :lang, :backfill, :enabled, :created_at)",
         s | {"created_at": worker.now_iso()},
     )
     worker.request_check(cur.lastrowid)
@@ -150,10 +151,11 @@ async def update_source(request: Request, source_id: int):
     db.execute(
         "UPDATE sources SET name = :name, url = :url, kind = :kind, quality = :quality, "
         "audio_format = :audio_format, interval_minutes = :interval_minutes, only_after = :only_after, "
-        "keep_last = :keep_last, sub_langs = :sub_langs, backfill = :backfill, enabled = :enabled "
+        "keep_last = :keep_last, sub_langs = :sub_langs, lang = :lang, backfill = :backfill, enabled = :enabled "
         "WHERE id = :id",
         s | {"id": source_id},
     )
+    worker.request_check(source_id)  # picks up a changed URL or title language right away
     worker.wake_downloads()
     return back(f"/sources/{source_id}")
 

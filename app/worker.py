@@ -86,6 +86,31 @@ def disk_usage(src, max_age=300):
     return total
 
 
+def _supported_langs():
+    try:
+        from yt_dlp.extractor.youtube import YoutubeIE
+        return set(YoutubeIE._SUPPORTED_LANG_CODES)
+    except Exception:  # noqa: BLE001 - internal attribute; fall back to no language hint
+        return set()
+
+
+SUPPORTED_LANGS = _supported_langs()
+
+
+def youtube_lang(code):
+    """Map a video language like 'nl-NL' onto a code YouTube's hl accepts, or None."""
+    if not code:
+        return None
+    for candidate in (code, code.split("-")[0]):
+        if candidate in SUPPORTED_LANGS:
+            return candidate
+    return None
+
+
+def title_lang(src):
+    return youtube_lang(src["lang"]) or youtube_lang(src["lang_detected"])
+
+
 def _base_opts():
     opts = {"quiet": True, "no_warnings": True, "noprogress": True}
     if os.path.exists(COOKIES_FILE):
@@ -116,13 +141,18 @@ def _entry_date(entry):
 
 # --------------------------------------------------------------------------- indexing
 
-def _exact_date(url):
+def _video_info(url):
     try:
         with yt_dlp.YoutubeDL(_base_opts()) as ydl:
-            return ydl.extract_info(url, download=False, process=False).get("upload_date")
-    except Exception as e:  # noqa: BLE001 - the download step checks again
-        log.warning("Could not get date for %s: %s", url, e)
-        return None
+            return ydl.extract_info(url, download=False, process=False) or {}
+    except Exception as e:  # noqa: BLE001 - callers treat missing info as "unknown"
+        log.warning("Could not get info for %s: %s", url, e)
+        return {}
+
+
+def _entry_url(entry):
+    url = entry.get("webpage_url") or entry.get("url") or ""
+    return url if url.startswith("http") else f"https://www.youtube.com/watch?v={entry.get('id')}"
 
 
 def index_source(src):
@@ -136,6 +166,11 @@ def index_source(src):
         # That estimate is never older than the real date, so skipping on it is safe.
         "extractor_args": {"youtubetab": {"approximate_date": ["true"]}},
     }
+    # YouTube translates titles into the requester's language (English by default);
+    # asking in the channel's own language returns the original titles
+    lang = title_lang(src)
+    if lang:
+        opts["extractor_args"]["youtube"] = {"lang": [lang]}
     if not first_run and RECHECK_LIMIT > 0:
         opts["playlistend"] = RECHECK_LIMIT
     log.info("Indexing %s (%s)", src["name"], src["url"])
@@ -143,6 +178,17 @@ def index_source(src):
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(src["url"], download=False)
         entries = list(_flatten(info)) if info.get("entries") is not None else [info]
+
+        if not lang and entries and entries[0].get("id"):
+            # Unknown language: look at the newest video once, then list again untranslated
+            detected = youtube_lang(_video_info(_entry_url(entries[0])).get("language"))
+            if detected:
+                db.execute("UPDATE sources SET lang_detected = ? WHERE id = ?", (detected, src["id"]))
+                lang = detected
+                opts["extractor_args"]["youtube"] = {"lang": [lang]}
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(src["url"], download=False)
+                entries = list(_flatten(info)) if info.get("entries") is not None else [info]
 
         new = 0
         cutoff = src["only_after"]
@@ -153,10 +199,13 @@ def index_source(src):
             if not vid or entry.get("live_status") in LIVE_STATES:
                 # Premieres/livestreams are picked up on a later check once they're finished
                 continue
-            url = entry.get("webpage_url") or entry.get("url") or ""
-            if not url.startswith("http"):
-                url = f"https://www.youtube.com/watch?v={vid}"
+            url = _entry_url(entry)
             if db.one("SELECT 1 FROM media WHERE source_id = ? AND video_id = ?", (src["id"], vid)):
+                if lang and entry.get("title"):
+                    # Replace earlier translated titles; downloaded items already carry the original
+                    db.execute("UPDATE media SET title = ? WHERE source_id = ? AND video_id = ? "
+                               "AND status IN ('pending', 'skipped', 'error')",
+                               (entry["title"], src["id"], vid))
                 continue
             upload_date = _entry_date(entry)
             status = "pending"
@@ -167,7 +216,7 @@ def index_source(src):
             elif cutoff:
                 if not upload_date and ordered:
                     # YouTube sometimes omits the "3 weeks ago" text; look the date up
-                    upload_date = _exact_date(url)
+                    upload_date = _video_info(url).get("upload_date")
                 if upload_date and upload_date < cutoff:
                     status = "skipped"
                     cutoff_reached = ordered
@@ -296,6 +345,11 @@ def download_one(media):
                 # Forget it; the next index run re-adds it once the stream is finished
                 db.execute("DELETE FROM media WHERE id = ?", (media["id"],))
                 return
+            detected = youtube_lang(info.get("language"))
+            if detected and detected != src["lang_detected"]:
+                db.execute("UPDATE sources SET lang_detected = ? WHERE id = ?", (detected, src["id"]))
+                if not src["lang"]:
+                    request_check(src["id"])  # re-index to fetch untranslated titles
             upload_date = info.get("upload_date") or media["upload_date"]
             title = info.get("title") or media["title"]
             current["title"] = title

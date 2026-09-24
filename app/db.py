@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS sources (
     sub_langs        TEXT NOT NULL DEFAULT '',
     backfill         INTEGER NOT NULL DEFAULT 0,      -- download existing videos on first index
     enabled          INTEGER NOT NULL DEFAULT 1,
+    lang             TEXT NOT NULL DEFAULT '',        -- title language; '' = detect automatically
+    lang_detected    TEXT,
     last_checked     TEXT,
     last_error       TEXT,
     created_at       TEXT NOT NULL
@@ -73,6 +75,11 @@ def init():
     with tx() as c:
         c.execute("PRAGMA journal_mode = WAL")
         c.executescript(SCHEMA)
+        columns = {r["name"] for r in c.execute("PRAGMA table_info(sources)")}
+        if "lang" not in columns:
+            c.execute("ALTER TABLE sources ADD COLUMN lang TEXT NOT NULL DEFAULT ''")
+        if "lang_detected" not in columns:
+            c.execute("ALTER TABLE sources ADD COLUMN lang_detected TEXT")
         # Downloads interrupted by a restart go back into the queue
         c.execute("UPDATE media SET status = 'pending' WHERE status = 'downloading'")
 

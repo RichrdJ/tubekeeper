@@ -20,6 +20,10 @@
     <label>Controleer elke (minuten)<input type="number" min="5" name="interval_minutes" value="{{ s.interval_minutes if s else 60 }}"></label>
     <label>Alleen uploads vanaf<input type="date" name="only_after" value="{{ (s.only_after if s else '') | isodate }}"></label>
     <label>Bewaar alleen de nieuwste N<input type="number" min="0" name="keep_last" value="{{ s.keep_last if s and s.keep_last else '' }}" placeholder="leeg = alles bewaren"></label>
+    <label>Taal van titels
+      <input name="lang" value="{{ s.lang if s else '' }}" list="langs"
+             placeholder="{{ 'automatisch' ~ (' (' ~ s.lang_detected ~ ')' if s and s.lang_detected else '') }}">
+      <datalist id="langs"><option value="nl"><option value="en"><option value="de"><option value="fr"><option value="es"></datalist></label>
     <label>Ondertitels (talen)<input name="sub_langs" value="{{ s.sub_langs if s else '' }}" placeholder="bv. nl,en"></label>
     <label class="check"><input type="checkbox" name="backfill" {{ 'checked' if s and s.backfill }}>Bestaande video's ook downloaden</label>
     <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if not s or s.enabled }}>Actief</label>
