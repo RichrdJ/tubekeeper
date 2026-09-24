@@ -10,6 +10,7 @@ mapstructuur die Plex/Jellyfin/Emby direct oppakken.
 - Alleen nieuwe uploads, of ook de bestaande backlog (per stuk of in één keer)
 - Filter "alleen uploads vanaf datum" en "bewaar alleen de nieuwste N" (oudere bestanden worden opgeruimd)
 - Ondertitels embedden, metadata + hoofdstukken + thumbnail embedden, `.jpg` poster naast het bestand
+- Abonnementen importeren vanuit je YouTube-account (cookies) of Google Takeout, optioneel automatisch bijhouden
 - Meldingen via Pushover, Prowl, ntfy of Discord zodra iets gedownload is (of mislukt)
 - Opslaggebruik per bron en in totaal
 - Wachtrij met live voortgang, fouten opnieuw proberen, premières/livestreams worden later opgepakt

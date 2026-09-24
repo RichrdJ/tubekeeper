@@ -247,6 +247,8 @@ def index_source(src):
             "UPDATE sources SET last_checked = ?, last_error = NULL WHERE id = ?",
             (now_iso(), src["id"]),
         )
+        if info.get("channel_id") and info["channel_id"] != src["channel_id"]:
+            db.execute("UPDATE sources SET channel_id = ? WHERE id = ?", (info["channel_id"], src["id"]))
         if src["layout"] == "series":
             save_show_art(src, info)
         if src["name"] == src["url"]:
@@ -289,6 +291,8 @@ def _scheduler_loop():
             for src in db.query("SELECT * FROM sources ORDER BY id"):
                 if src["id"] in forced or (src["enabled"] and _is_due(src)):
                     index_source(src)
+            from . import subs  # late import: subs imports this module
+            subs.sync_if_due()
         except Exception:  # noqa: BLE001
             log.exception("Scheduler error")
         _index_wake.wait(30)

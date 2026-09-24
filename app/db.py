@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS sources (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     name             TEXT NOT NULL,
     url              TEXT NOT NULL,
+    channel_id       TEXT,
     kind             TEXT NOT NULL DEFAULT 'video',   -- video | audio
     quality          TEXT NOT NULL DEFAULT '1080',    -- best | 2160 | 1440 | 1080 | 720 | 480 | 360
     audio_format     TEXT NOT NULL DEFAULT 'm4a',
@@ -79,6 +80,8 @@ def init():
         columns = {r["name"] for r in c.execute("PRAGMA table_info(sources)")}
         if "lang" not in columns:
             c.execute("ALTER TABLE sources ADD COLUMN lang TEXT NOT NULL DEFAULT ''")
+        if "channel_id" not in columns:
+            c.execute("ALTER TABLE sources ADD COLUMN channel_id TEXT")
         if "layout" not in columns:
             c.execute("ALTER TABLE sources ADD COLUMN layout TEXT NOT NULL DEFAULT 'flat'")
         if "lang_detected" not in columns:

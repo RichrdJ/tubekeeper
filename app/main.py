@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import db, notify, worker
+from . import db, notify, subs, worker
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -55,7 +55,8 @@ def _iso_date(value):
     return f"{value[0:4]}-{value[4:6]}-{value[6:8]}" if value else ""
 
 
-templates.env.filters.update(dt=_fmt_dt, date=_fmt_date, isodate=_iso_date, size=_fmt_size)
+templates.env.filters.update(dt=_fmt_dt, date=_fmt_date, isodate=_iso_date, size=_fmt_size,
+                             ts=lambda t: datetime.fromtimestamp(float(t)).strftime("%d-%m-%Y %H:%M"))
 templates.env.globals.update(qualities=QUALITIES, audio_formats=AUDIO_FORMATS,
                              version=os.environ.get("APP_VERSION", "dev"))
 
@@ -75,16 +76,9 @@ def _source_or_404(source_id):
     return src
 
 
-async def _source_from_form(request):
-    form = await request.form()
-    url = worker.normalize_url(str(form.get("url", "")))
-    if not url.startswith("http"):
-        raise HTTPException(400, "Ongeldige URL")
+def _settings_from_form(form):
     keep_last = str(form.get("keep_last", "")).strip()
     return {
-        # Empty name: @handle from the URL, otherwise the channel/playlist title after the first check
-        "name": str(form.get("name", "")).strip() or worker.name_from_url(url) or url,
-        "url": url,
         "kind": "audio" if form.get("kind") == "audio" else "video",
         "quality": form.get("quality") if form.get("quality") in QUALITIES else "1080",
         "audio_format": form.get("audio_format") if form.get("audio_format") in AUDIO_FORMATS else "m4a",
@@ -99,10 +93,22 @@ async def _source_from_form(request):
     }
 
 
+async def _source_from_form(request):
+    form = await request.form()
+    url = worker.normalize_url(str(form.get("url", "")))
+    if not url.startswith("http"):
+        raise HTTPException(400, "Ongeldige URL")
+    return {
+        # Empty name: @handle from the URL, otherwise the channel/playlist title after the first check
+        "name": str(form.get("name", "")).strip() or worker.name_from_url(url) or url,
+        "url": url,
+    } | _settings_from_form(form)
+
+
 # --------------------------------------------------------------------------- pages
 
 @app.get("/")
-def index(request: Request):
+def index(request: Request, msg: str = ""):
     sources = db.query(
         """SELECT s.*,
                   COUNT(m.id)                   AS n_total,
@@ -113,7 +119,7 @@ def index(request: Request):
            GROUP BY s.id ORDER BY s.name COLLATE NOCASE"""
     )
     sizes = {s["id"]: worker.disk_usage(s) for s in sources}
-    return render(request, "index.html", sources=sources, sizes=sizes, total_size=sum(sizes.values()))
+    return render(request, "index.html", sources=sources, sizes=sizes, total_size=sum(sizes.values()), msg=msg)
 
 
 @app.post("/sources")
@@ -245,6 +251,62 @@ def queue(request: Request):
         "WHERE m.status IN ('done', 'error') "
         "ORDER BY COALESCE(m.downloaded_at, m.created_at) DESC LIMIT 50")
     return render(request, "queue.html", pending=pending, recent=recent)
+
+
+@app.get("/import")
+def import_page(request: Request, msg: str = ""):
+    return render(request, "import.html", channels=None, d=subs.get_defaults(), msg=msg,
+                  has_cookies=os.path.exists(worker.COOKIES_FILE), sync=subs.sync_enabled(),
+                  last_sync=subs.last_sync())
+
+
+@app.post("/import/fetch")
+async def import_fetch(request: Request):
+    form = await request.form()
+    try:
+        upload = form.get("takeout")
+        if upload is not None and getattr(upload, "filename", ""):
+            channels = subs.parse_takeout(await upload.read())
+        else:
+            channels = subs.fetch_account()
+    except Exception as e:  # noqa: BLE001 - show the reason on the page
+        return back("/import?" + urllib.parse.urlencode({"msg": f"✗ {e}"[:300]}))
+    return render(request, "import.html", channels=subs.mark_existing(channels), d=subs.get_defaults(),
+                  msg="", has_cookies=os.path.exists(worker.COOKIES_FILE), sync=subs.sync_enabled(),
+                  last_sync=subs.last_sync())
+
+
+@app.post("/import/add")
+async def import_add(request: Request):
+    form = await request.form()
+    settings = _settings_from_form(form)
+    subs.save_defaults(settings)
+    channels = []
+    for value in form.getlist("channel"):
+        cid, _, rest = str(value).partition("|")
+        url, _, title = rest.partition("|")
+        channels.append({"id": cid, "url": url, "title": title})
+    added = subs.add_channels(channels, settings)
+    return back("/?" + urllib.parse.urlencode({"msg": f"✓ {added} kanalen toegevoegd"}))
+
+
+@app.post("/import/cookies")
+async def import_cookies(request: Request):
+    form = await request.form()
+    upload = form.get("cookies")
+    data = await upload.read() if upload is not None and getattr(upload, "filename", "") else b""
+    if b"youtube.com" not in data:
+        return back("/import?" + urllib.parse.urlencode({"msg": "✗ Dit lijkt geen cookies.txt met YouTube-cookies."}))
+    subs.save_cookies(data)
+    return back("/import?" + urllib.parse.urlencode({"msg": "✓ Cookies opgeslagen"}))
+
+
+@app.post("/import/settings")
+async def import_settings(request: Request):
+    form = await request.form()
+    subs.save_defaults(_settings_from_form(form))
+    subs.set_sync(bool(form.get("sync")))
+    return back("/import?" + urllib.parse.urlencode({"msg": "✓ Opgeslagen"}))
 
 
 @app.get("/notifications")

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_form.html" import settings_fields %}
+{% block title %}Importeren · TubeKeeper{% endblock %}
+{% block content %}
+<h1>Abonnementen importeren</h1>
+{% if msg %}<p class="card {{ 'err' if msg.startswith('✗') }}">{{ msg }}</p>{% endif %}
+
+{% if channels is not none %}
+<form method="post" action="/import/add">
+  <h2>Kies kanalen ({{ channels | rejectattr('exists') | list | length }} nieuw van {{ channels | length }})</h2>
+  <div class="card scroll">
+    <div class="row" style="margin-bottom:8px">
+      <button type="button" class="btn small" onclick="document.querySelectorAll('input[name=channel]:not(:disabled)').forEach(c => c.checked = true)">Alles aan</button>
+      <button type="button" class="btn small" onclick="document.querySelectorAll('input[name=channel]').forEach(c => c.checked = false)">Alles uit</button>
+    </div>
+    <table>
+      {% for c in channels %}
+      <tr><td style="width:30px"><input type="checkbox" name="channel" value="{{ c.id }}|{{ c.url }}|{{ c.title }}" {{ 'disabled' if c.exists else 'checked' }}></td>
+          <td>{{ c.title }} {% if c.exists %}<span class="badge">al toegevoegd</span>{% endif %}<div class="muted small">{{ c.url }}</div></td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <h2>Instellingen voor deze kanalen</h2>
+  <div class="card"><div class="grid">{{ settings_fields(d) }}</div>
+    <p class="muted small">Standaard wordt niets van de bestaande video's gedownload, alleen nieuwe uploads vanaf nu.
+    Zet "Actief" uit om ze eerst gepauzeerd toe te voegen. Per kanaal kun je dit later aanpassen.</p>
+    <button class="btn primary">Geselecteerde kanalen toevoegen</button></div>
+</form>
+{% else %}
+
+<h2>1 · Vanuit je YouTube-account</h2>
+<div class="card">
+  <p class="small">TubeKeeper leest je abonnementen met de cookies van je ingelogde YouTube-sessie.
+  {% if has_cookies %}<span class="badge b-done">cookies.txt aanwezig</span>{% else %}<span class="badge b-pending">nog geen cookies.txt</span>{% endif %}</p>
+  <details style="margin-bottom:12px"><summary>Hoe kom ik aan cookies.txt?</summary>
+    <ol class="small">
+      <li>Installeer in Chrome/Firefox de extensie <strong>"Get cookies.txt LOCALLY"</strong>.</li>
+      <li>Open een <strong>privévenster</strong>, log in op youtube.com en exporteer de cookies van youtube.com.</li>
+      <li>Sluit daarna het privévenster (dan blijven de cookies langer geldig) en upload het bestand hier.</li>
+    </ol>
+    <p class="muted small">De cookies worden alleen op je eigen server opgeslagen (<code>/config/cookies.txt</code>) en ook gebruikt
+    voor downloads, wat helpt tegen "Sign in to confirm you're not a bot". Gebruik eventueel een apart Google-account.</p>
+  </details>
+  <div class="row">
+    <form method="post" action="/import/cookies" enctype="multipart/form-data" class="row">
+      <input type="file" name="cookies" accept=".txt" style="width:auto"><button class="btn">Cookies uploaden</button>
+    </form>
+    {% if has_cookies %}<form method="post" action="/import/fetch"><button class="btn primary">Abonnementen ophalen</button></form>{% endif %}
+  </div>
+</div>
+
+<h2>2 · Via Google Takeout</h2>
+<div class="card">
+  <p class="small">Zonder cookies: ga naar <a href="https://takeout.google.com" target="_blank">takeout.google.com</a>, kies alleen
+  <em>YouTube en YouTube Music</em> → <em>abonnementen</em>, en upload uit het zip-bestand <code>subscriptions.csv</code>.</p>
+  <form method="post" action="/import/fetch" enctype="multipart/form-data" class="row">
+    <input type="file" name="takeout" accept=".csv" style="width:auto" required><button class="btn primary">Bestand inlezen</button>
+  </form>
+</div>
+
+<h2>Automatisch bijhouden</h2>
+<form method="post" action="/import/settings" class="card">
+  <label class="check" style="margin:0 0 12px"><input type="checkbox" name="sync" {{ 'checked' if sync }} {{ 'disabled' if not has_cookies }}>
+    Nieuwe abonnementen automatisch toevoegen (elke 6 uur, via de cookies)</label>
+  {% if last_sync %}<p class="muted small">Laatst gecontroleerd: {{ last_sync | ts }}</p>{% endif %}
+  <p class="muted small">Standaardinstellingen voor automatisch (en handmatig) geïmporteerde kanalen:</p>
+  <div class="grid">{{ settings_fields(d) }}</div>
+  <button class="btn primary" style="margin-top:12px">Opslaan</button>
+</form>
+{% endif %}
+{% endblock %}

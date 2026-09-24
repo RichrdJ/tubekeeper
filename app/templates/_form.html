@@ -1,9 +1,4 @@
-{% macro source_form(s, action, submit) %}
-<form method="post" action="{{ action }}" class="card">
-  <div class="grid">
-    <label>Naam<input name="name" value="{{ s.name if s else '' }}" placeholder="leeg = kanaalnaam"></label>
-    <label style="grid-column: span 2">URL (kanaal, playlist of video)
-      <input name="url" value="{{ s.url if s else '' }}" placeholder="https://www.youtube.com/@kanaal" required></label>
+{% macro settings_fields(s) %}
     <label>Type
       <select name="kind">
         <option value="video" {{ 'selected' if not s or s.kind == 'video' }}>Video</option>
@@ -32,6 +27,15 @@
     <label>Ondertitels (talen)<input name="sub_langs" value="{{ s.sub_langs if s else '' }}" placeholder="bv. nl,en"></label>
     <label class="check"><input type="checkbox" name="backfill" {{ 'checked' if s and s.backfill }}>Bestaande video's ook downloaden</label>
     <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if not s or s.enabled }}>Actief</label>
+{% endmacro %}
+
+{% macro source_form(s, action, submit) %}
+<form method="post" action="{{ action }}" class="card">
+  <div class="grid">
+    <label>Naam<input name="name" value="{{ s.name if s else '' }}" placeholder="leeg = kanaalnaam"></label>
+    <label style="grid-column: span 2">URL (kanaal, playlist of video)
+      <input name="url" value="{{ s.url if s else '' }}" placeholder="https://www.youtube.com/@kanaal" required></label>
+    {{ settings_fields(s) }}
   </div>
   <div class="row" style="margin-top:14px"><button class="btn primary">{{ submit }}</button></div>
 </form>
