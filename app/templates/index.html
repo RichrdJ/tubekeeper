@@ -20,6 +20,7 @@
     <td class="small">{{ s.last_checked | dt }}<div class="muted">elke {{ s.interval_minutes }} min</div></td>
     <td style="white-space:nowrap">
       <form class="inline" method="post" action="/sources/{{ s.id }}/check"><button class="btn small">Controleren</button></form>
+      <a class="btn small" href="/sources/{{ s.id }}/edit">Bewerken</a>
       <form class="inline" method="post" action="/sources/{{ s.id }}/toggle"><button class="btn small">{{ 'Pauzeren' if s.enabled else 'Hervatten' }}</button></form>
       <form class="inline" method="post" action="/sources/{{ s.id }}/delete" onsubmit="return confirm('Bron {{ s.name }} verwijderen? Gedownloade bestanden blijven staan.')"><button class="btn small">Verwijderen</button></form>
     </td>

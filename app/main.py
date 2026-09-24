@@ -131,7 +131,7 @@ async def create_source(request: Request):
 
 
 @app.get("/sources/{source_id}")
-def source_detail(request: Request, source_id: int, status: str = ""):
+def source_detail(request: Request, source_id: int, status: str = "", saved: int = 0):
     src = _source_or_404(source_id)
     sql = "SELECT * FROM media WHERE source_id = ?"
     args = [source_id]
@@ -142,7 +142,12 @@ def source_detail(request: Request, source_id: int, status: str = ""):
     counts = {r["status"]: r["n"] for r in db.query(
         "SELECT status, COUNT(*) AS n FROM media WHERE source_id = ? GROUP BY status", (source_id,))}
     return render(request, "source.html", src=src, media=db.query(sql, args),
-                  counts=counts, status=status, size=worker.disk_usage(src))
+                  counts=counts, status=status, size=worker.disk_usage(src), saved=saved)
+
+
+@app.get("/sources/{source_id}/edit")
+def edit_source(request: Request, source_id: int):
+    return render(request, "edit.html", src=_source_or_404(source_id))
 
 
 @app.post("/sources/{source_id}")
@@ -159,9 +164,11 @@ async def update_source(request: Request, source_id: int):
     )
     if s["layout"] != old["layout"] or s["name"] != old["name"]:
         worker.reorganize_async(source_id, old_dir=worker.source_dir(old))
+    if s["keep_last"] != old["keep_last"]:
+        worker.enforce_retention(_source_or_404(source_id))  # a lower limit applies right away
     worker.request_check(source_id)  # picks up a changed URL or title language right away
     worker.wake_downloads()
-    return back(f"/sources/{source_id}")
+    return back(f"/sources/{source_id}?saved=1")
 
 
 @app.post("/sources/{source_id}/delete")

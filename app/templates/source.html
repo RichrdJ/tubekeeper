@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% from "_form.html" import source_form %}
 {% block title %}{{ src.name }} · TubeKeeper{% endblock %}
 {% block content %}
 <div class="row" style="justify-content:space-between">
   <h1>{{ src.name }} {% if not src.enabled %}<span class="badge">gepauzeerd</span>{% endif %}</h1>
   <div class="row">
     <form class="inline" method="post" action="/sources/{{ src.id }}/check"><button class="btn primary">Nu controleren</button></form>
+    <a class="btn" href="/sources/{{ src.id }}/edit">⚙ Instellingen</a>
     <form class="inline" method="post" action="/sources/{{ src.id }}/toggle"><button class="btn">{{ '⏸ Pauzeren' if src.enabled else '▶ Hervatten' }}</button></form>
     {% if counts.get('pending') %}<form class="inline" method="post" action="/sources/{{ src.id }}/clear-queue"
       onsubmit="return confirm('Alle {{ counts.pending }} items in de wachtrij overslaan?')"><button class="btn">Wachtrij legen ({{ counts.pending }})</button></form>{% endif %}
@@ -15,6 +15,11 @@
   </div>
 </div>
 <p class="muted small">{{ src.url }} · {{ size | size }} in gebruik · laatst gecontroleerd {{ src.last_checked | dt }}</p>
+{% if saved %}<p class="card" style="border-color:var(--ok)">✓ Instellingen opgeslagen</p>{% endif %}
+<p class="muted small">Elke {{ src.interval_minutes }} min · {{ 'Audio' if src.kind == 'audio' else ('Beste' if src.quality == 'best' else src.quality ~ 'p') }}
+  {%- if src.only_after %} · vanaf {{ src.only_after | date }}{% endif %}
+  {%- if src.keep_last %} · bewaart nieuwste {{ src.keep_last }}{% endif %}
+  · {{ 'Plex-serie' if src.layout == 'series' else 'één map' }}</p>
 {% if src.last_error %}<p class="err">⚠ {{ src.last_error }}</p>{% endif %}
 
 <div class="tabs" style="margin:16px 0">
@@ -51,12 +56,4 @@
 {% endif %}
 </div>
 
-<h2>Instellingen</h2>
-{{ source_form(src, "/sources/" ~ src.id, "Opslaan") }}
-
-<h2>Verwijderen</h2>
-<form method="post" action="/sources/{{ src.id }}/delete" class="card row" onsubmit="return confirm('Bron {{ src.name }} verwijderen?')">
-  <label class="check" style="margin:0"><input type="checkbox" name="delete_files">Ook gedownloade bestanden verwijderen</label>
-  <button class="btn">Bron verwijderen</button>
-</form>
 {% endblock %}

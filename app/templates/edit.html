@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_form.html" import source_form %}
+{% block title %}{{ src.name }} bewerken · TubeKeeper{% endblock %}
+{% block content %}
+<p class="small"><a href="/sources/{{ src.id }}">← {{ src.name }}</a></p>
+<h1>{{ src.name }} bewerken</h1>
+{{ source_form(src, "/sources/" ~ src.id, "Opslaan") }}
+
+<h2>Verwijderen</h2>
+<form method="post" action="/sources/{{ src.id }}/delete" class="card row" onsubmit="return confirm('Bron {{ src.name }} verwijderen?')">
+  <label class="check" style="margin:0"><input type="checkbox" name="delete_files">Ook gedownloade bestanden verwijderen</label>
+  <button class="btn">Bron verwijderen</button>
+</form>
+{% endblock %}
