@@ -1,7 +1,7 @@
 {% macro source_form(s, action, submit) %}
 <form method="post" action="{{ action }}" class="card">
   <div class="grid">
-    <label>Naam<input name="name" value="{{ s.name if s else '' }}" placeholder="bv. Veritasium" required></label>
+    <label>Naam<input name="name" value="{{ s.name if s else '' }}" placeholder="leeg = kanaalnaam"></label>
     <label style="grid-column: span 2">URL (kanaal, playlist of video)
       <input name="url" value="{{ s.url if s else '' }}" placeholder="https://www.youtube.com/@kanaal" required></label>
     <label>Type

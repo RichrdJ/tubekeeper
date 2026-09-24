@@ -5,11 +5,13 @@ controleert periodiek op nieuwe uploads en downloadt ze automatisch met **yt-dlp
 mapstructuur die Plex/Jellyfin/Emby direct oppakken.
 
 ## Functies
-- Kanalen, playlists of losse video's toevoegen via een web-UI (poort **8945**)
+- Kanalen, playlists of losse video's toevoegen via een web-UI (poort **8945**); naam leeg laten = kanaalnaam
 - Per bron: max. kwaliteit (360p–4K/beste), video of alleen audio (m4a/mp3/opus), controle-interval
 - Alleen nieuwe uploads, of ook de bestaande backlog (per stuk of in één keer)
 - Filter "alleen uploads vanaf datum" en "bewaar alleen de nieuwste N" (oudere bestanden worden opgeruimd)
 - Ondertitels embedden, metadata + hoofdstukken + thumbnail embedden, `.jpg` poster naast het bestand
+- Meldingen via Pushover, Prowl, ntfy of Discord zodra iets gedownload is (of mislukt)
+- Opslaggebruik per bron en in totaal
 - Wachtrij met live voortgang, fouten opnieuw proberen, premières/livestreams worden later opgepakt
 - yt-dlp wordt bij elke containerstart automatisch bijgewerkt
 - Optioneel `cookies.txt` in `/config` voor leeftijdsbeperkte/members-only video's
@@ -53,6 +55,9 @@ services:
 docker build -t tubekeeper:latest .
 ```
 en daarna in Portainer de stack uit optie B gebruiken met `image: tubekeeper:latest`.
+
+## Versies
+Elke release krijgt een eigen image-tag, bv. `ghcr.io/richrdj/tubekeeper:1.0.0`. `:latest` volgt altijd `main`.
 
 ## Omgevingsvariabelen
 | Variabele | Standaard | Uitleg |

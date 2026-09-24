@@ -1,5 +1,6 @@
 import logging
 import os
+import urllib.parse
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -7,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import db, worker
+from . import db, notify, worker
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -41,13 +42,22 @@ def _fmt_date(value):
     return f"{value[6:8]}-{value[4:6]}-{value[0:4]}"
 
 
+def _fmt_size(n):
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit in ("B", "KB") else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} TB"
+
+
 def _iso_date(value):
     """YYYYMMDD -> YYYY-MM-DD for <input type=date>."""
     return f"{value[0:4]}-{value[4:6]}-{value[6:8]}" if value else ""
 
 
-templates.env.filters.update(dt=_fmt_dt, date=_fmt_date, isodate=_iso_date)
-templates.env.globals.update(qualities=QUALITIES, audio_formats=AUDIO_FORMATS)
+templates.env.filters.update(dt=_fmt_dt, date=_fmt_date, isodate=_iso_date, size=_fmt_size)
+templates.env.globals.update(qualities=QUALITIES, audio_formats=AUDIO_FORMATS,
+                             version=os.environ.get("APP_VERSION", "dev"))
 
 
 def render(request, name, **ctx):
@@ -72,7 +82,8 @@ async def _source_from_form(request):
         raise HTTPException(400, "Ongeldige URL")
     keep_last = str(form.get("keep_last", "")).strip()
     return {
-        "name": str(form.get("name", "")).strip() or url,
+        # Empty name: @handle from the URL, otherwise the channel/playlist title after the first check
+        "name": str(form.get("name", "")).strip() or worker.name_from_url(url) or url,
         "url": url,
         "kind": "audio" if form.get("kind") == "audio" else "video",
         "quality": form.get("quality") if form.get("quality") in QUALITIES else "1080",
@@ -99,7 +110,8 @@ def index(request: Request):
            FROM sources s LEFT JOIN media m ON m.source_id = s.id
            GROUP BY s.id ORDER BY s.name COLLATE NOCASE"""
     )
-    return render(request, "index.html", sources=sources)
+    sizes = {s["id"]: worker.disk_usage(s) for s in sources}
+    return render(request, "index.html", sources=sources, sizes=sizes, total_size=sum(sizes.values()))
 
 
 @app.post("/sources")
@@ -128,7 +140,7 @@ def source_detail(request: Request, source_id: int, status: str = ""):
     counts = {r["status"]: r["n"] for r in db.query(
         "SELECT status, COUNT(*) AS n FROM media WHERE source_id = ? GROUP BY status", (source_id,))}
     return render(request, "source.html", src=src, media=db.query(sql, args),
-                  counts=counts, status=status)
+                  counts=counts, status=status, size=worker.disk_usage(src))
 
 
 @app.post("/sources/{source_id}")
@@ -220,6 +232,39 @@ def queue(request: Request):
         "WHERE m.status IN ('done', 'error') "
         "ORDER BY COALESCE(m.downloaded_at, m.created_at) DESC LIMIT 50")
     return render(request, "queue.html", pending=pending, recent=recent)
+
+
+@app.get("/notifications")
+def notifications(request: Request, test: str = ""):
+    return render(request, "notifications.html", s=notify.get_settings(), test=test)
+
+
+async def _save_notification_form(request):
+    form = await request.form()
+    values = {}
+    for key in notify.DEFAULTS:
+        if key.endswith("_enabled") or key.startswith("on_"):
+            values[key] = "1" if form.get(key) else "0"  # unchecked boxes are absent
+        else:
+            values[key] = str(form.get(key, "")).strip()
+    notify.save_settings(values)
+
+
+@app.post("/notifications")
+async def save_notifications(request: Request):
+    await _save_notification_form(request)
+    return back("/notifications?test=saved")
+
+
+@app.post("/notifications/test/{service}")
+async def test_notification(request: Request, service: str):
+    if service not in notify.SERVICES:
+        raise HTTPException(404)
+    await _save_notification_form(request)
+    result = notify.send_now("TubeKeeper test", "Als je dit leest werken de meldingen 🎉",
+                             "https://github.com/RichrdJ/tubekeeper", only=service)
+    err = result.get(service)
+    return back("/notifications?" + urllib.parse.urlencode({"test": f"{service}:{'ok' if err is None else err[:200]}"}))
 
 
 # --------------------------------------------------------------------------- api

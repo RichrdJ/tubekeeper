@@ -14,7 +14,7 @@
       onsubmit="return confirm('Alle {{ counts.skipped }} overgeslagen items downloaden?')"><button class="btn">Overgeslagen downloaden ({{ counts.skipped }})</button></form>{% endif %}
   </div>
 </div>
-<p class="muted small">{{ src.url }} · laatst gecontroleerd {{ src.last_checked | dt }}</p>
+<p class="muted small">{{ src.url }} · {{ size | size }} in gebruik · laatst gecontroleerd {{ src.last_checked | dt }}</p>
 {% if src.last_error %}<p class="err">⚠ {{ src.last_error }}</p>{% endif %}
 
 <div class="tabs" style="margin:16px 0">

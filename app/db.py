@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS media (
 );
 
 CREATE INDEX IF NOT EXISTS idx_media_status ON media(status);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 

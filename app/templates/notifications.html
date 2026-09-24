@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Meldingen · TubeKeeper{% endblock %}
+{% macro service(key, title, help) %}
+<div class="card" style="margin-bottom:12px">
+  <div class="row" style="justify-content:space-between">
+    <label class="check" style="margin:0;font-size:16px"><input type="checkbox" name="{{ key }}_enabled" {{ 'checked' if s[key ~ '_enabled'] == '1' }}><strong>{{ title }}</strong></label>
+    <button class="btn small" formaction="/notifications/test/{{ key }}">Test versturen</button>
+  </div>
+  <p class="muted small" style="margin:6px 0 10px">{{ help | safe }}</p>
+  <div class="grid">{{ caller() }}</div>
+</div>
+{% endmacro %}
+{% block content %}
+<h1>Meldingen</h1>
+{% if test == 'saved' %}<p class="card" style="border-color:var(--ok)">✓ Opgeslagen</p>
+{% elif test %}{% set svc, _, res = test.partition(':') %}
+  {% if res == 'ok' %}<p class="card" style="border-color:var(--ok)">✓ Testbericht via {{ svc }} verstuurd — check je telefoon.</p>
+  {% else %}<p class="card err" style="border-color:var(--err)">✗ Test via {{ svc }} mislukt: {{ res }}</p>{% endif %}
+{% endif %}
+
+<form method="post" action="/notifications">
+  <h2>Wanneer</h2>
+  <div class="card row" style="gap:24px;margin-bottom:12px">
+    <label class="check" style="margin:0"><input type="checkbox" name="on_download" {{ 'checked' if s.on_download == '1' }}>Nieuwe video gedownload</label>
+    <label class="check" style="margin:0"><input type="checkbox" name="on_download_error" {{ 'checked' if s.on_download_error == '1' }}>Download mislukt</label>
+    <label class="check" style="margin:0"><input type="checkbox" name="on_index_error" {{ 'checked' if s.on_index_error == '1' }}>Controle van een bron mislukt</label>
+  </div>
+
+  <h2>Diensten</h2>
+  {% call service("pushover", "Pushover", 'User key staat op <a href="https://pushover.net" target="_blank">pushover.net</a>; maak daar onder "Your Applications" een app aan voor de API token.') %}
+    <label>User key<input type="password" name="pushover_user" value="{{ s.pushover_user }}" autocomplete="off"></label>
+    <label>API token<input type="password" name="pushover_token" value="{{ s.pushover_token }}" autocomplete="off"></label>
+  {% endcall %}
+  {% call service("prowl", "Prowl", 'API key aanmaken op <a href="https://www.prowlapp.com/api_settings.php" target="_blank">prowlapp.com → API Keys</a>.') %}
+    <label>API key<input type="password" name="prowl_apikey" value="{{ s.prowl_apikey }}" autocomplete="off"></label>
+  {% endcall %}
+  {% call service("ntfy", "ntfy", 'Gratis, zonder account: installeer de ntfy-app en abonneer op een zelfverzonnen (moeilijk te raden) topic.') %}
+    <label>Server<input name="ntfy_server" value="{{ s.ntfy_server }}"></label>
+    <label>Topic<input name="ntfy_topic" value="{{ s.ntfy_topic }}" placeholder="bv. tubekeeper-x7k2"></label>
+    <label>Access token (optioneel)<input type="password" name="ntfy_token" value="{{ s.ntfy_token }}" autocomplete="off"></label>
+  {% endcall %}
+  {% call service("discord", "Discord", 'Kanaal-instellingen → Integraties → Webhooks → Nieuwe webhook → URL kopiëren.') %}
+    <label style="grid-column: span 2">Webhook URL<input type="password" name="discord_webhook" value="{{ s.discord_webhook }}" autocomplete="off"></label>
+  {% endcall %}
+
+  <button class="btn primary">Opslaan</button>
+</form>
+{% endblock %}

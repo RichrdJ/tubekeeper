@@ -5,7 +5,7 @@
 <div class="card scroll">
 {% if sources %}
 <table>
-  <tr><th>Naam</th><th>Type</th><th>Gedownload</th><th>Wachtrij</th><th>Fouten</th><th>Laatst gecontroleerd</th><th></th></tr>
+  <tr><th>Naam</th><th>Type</th><th>Gedownload</th><th>Wachtrij</th><th>Fouten</th><th>Opslag</th><th>Laatst gecontroleerd</th><th></th></tr>
   {% for s in sources %}
   <tr>
     <td><a href="/sources/{{ s.id }}"><strong>{{ s.name }}</strong></a>
@@ -16,6 +16,7 @@
     <td>{{ s.n_done or 0 }}</td>
     <td>{{ s.n_pending or 0 }}</td>
     <td>{% if s.n_error %}<span class="badge b-error">{{ s.n_error }}</span>{% else %}0{% endif %}</td>
+    <td style="white-space:nowrap">{{ sizes[s.id] | size }}</td>
     <td class="small">{{ s.last_checked | dt }}<div class="muted">elke {{ s.interval_minutes }} min</div></td>
     <td style="white-space:nowrap">
       <form class="inline" method="post" action="/sources/{{ s.id }}/check"><button class="btn small">Controleren</button></form>
@@ -24,6 +25,7 @@
     </td>
   </tr>
   {% endfor %}
+  <tr><td colspan="5" class="muted">Totaal</td><td style="white-space:nowrap"><strong>{{ total_size | size }}</strong></td><td colspan="2"></td></tr>
 </table>
 {% else %}
 <p class="muted">Nog geen bronnen. Voeg hieronder een YouTube-kanaal of playlist toe.</p>

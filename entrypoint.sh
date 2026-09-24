@@ -4,7 +4,7 @@ set -e
 # YouTube changes often; a fresh yt-dlp on every start avoids most breakage
 if [ "${YTDLP_AUTO_UPDATE:-true}" = "true" ]; then
   echo "Updating yt-dlp..."
-  pip install --no-cache-dir --quiet --upgrade "yt-dlp[default]" || echo "yt-dlp update failed, continuing with installed version"
+  pip install --no-cache-dir --quiet --root-user-action=ignore --disable-pip-version-check --upgrade "yt-dlp[default]" || echo "yt-dlp update failed, continuing with installed version"
 fi
 
 mkdir -p "$DATA_DIR" "$DOWNLOAD_DIR"

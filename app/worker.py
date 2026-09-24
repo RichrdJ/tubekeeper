@@ -5,11 +5,12 @@ import os
 import re
 import threading
 import time
+import urllib.parse
 from datetime import datetime, timezone
 
 import yt_dlp
 
-from . import db
+from . import db, notify
 
 log = logging.getLogger("tubekeeper")
 
@@ -52,12 +53,37 @@ def normalize_url(url):
     return url
 
 
+def name_from_url(url):
+    m = re.search(r"youtube\.com/@([^/?#]+)", url)
+    return urllib.parse.unquote(m.group(1)) if m else None
+
+
 def safe_name(name):
     return re.sub(r'[\\/:*?"<>|]+', "_", name).strip(" .") or "source"
 
 
 def source_dir(src):
     return os.path.join(DOWNLOAD_DIR, safe_name(src["name"]))
+
+
+_size_cache = {}
+
+
+def disk_usage(src, max_age=300):
+    """Bytes used by a source's folder; cached because walking a NAS share is slow."""
+    path = source_dir(src)
+    hit = _size_cache.get(path)
+    if hit and time.time() - hit[0] < max_age:
+        return hit[1]
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    _size_cache[path] = (time.time(), total)
+    return total
 
 
 def _base_opts():
@@ -155,9 +181,15 @@ def index_source(src):
             "UPDATE sources SET last_checked = ?, last_error = NULL WHERE id = ?",
             (now_iso(), src["id"]),
         )
+        if src["name"] == src["url"]:
+            title = info.get("channel") or info.get("uploader") or info.get("title")
+            if title:
+                db.execute("UPDATE sources SET name = ? WHERE id = ?", (title, src["id"]))
         log.info("Indexed %s: %d items, %d new", src["name"], len(entries), new)
     except Exception as e:  # noqa: BLE001 - surface every failure in the UI
         log.warning("Indexing %s failed: %s", src["name"], e)
+        if not src["last_error"]:  # only on the transition to failing, not every interval
+            notify.notify("index_error", f"Controle mislukt: {src['name']}", str(e)[:500], src["url"])
         db.execute(
             "UPDATE sources SET last_checked = ?, last_error = ? WHERE id = ?",
             (now_iso(), str(e)[:1000], src["id"]),
@@ -283,9 +315,13 @@ def download_one(media):
             (result.get("path"), now_iso(), media["id"]),
         )
         log.info("Finished %s", title)
+        _size_cache.pop(source_dir(src), None)
+        notify.notify("download", f"Gedownload: {src['name']}", title, media["url"])
         enforce_retention(src)
     except Exception as e:  # noqa: BLE001
         log.warning("Download of %s failed: %s", media["url"], e)
+        notify.notify("download_error", f"Download mislukt: {src['name']}",
+                      f"{current['title']}\n{str(e)[:400]}", media["url"])
         db.execute("UPDATE media SET status = 'error', error = ? WHERE id = ?",
                    (str(e)[:1000], media["id"]))
     finally:
@@ -296,6 +332,7 @@ def delete_files(filepath):
     """Remove a download plus its siblings (thumbnail, subtitles)."""
     if not filepath:
         return
+    _size_cache.pop(os.path.dirname(filepath), None)
     stem = os.path.splitext(filepath)[0]
     for f in glob.glob(glob.escape(stem) + ".*"):
         try:
