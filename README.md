@@ -72,7 +72,7 @@ docker build -t tubekeeper:latest .
 en daarna in Portainer de stack uit optie B gebruiken met `image: tubekeeper:latest`.
 
 ## Versies
-Elke release krijgt een eigen image-tag, bv. `ghcr.io/richrdj/tubekeeper:1.0.0`. `:latest` volgt altijd `main`.
+Elke release krijgt een eigen image-tag, bv. `ghcr.io/richrdj/tubekeeper:1.0.0`. `:latest` is altijd de nieuwste release; `:edge` volgt `main` (testversie).
 
 ## Omgevingsvariabelen
 | Variabele | Standaard | Uitleg |
