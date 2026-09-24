@@ -17,7 +17,11 @@
     <td>{{ s.n_pending or 0 }}</td>
     <td>{% if s.n_error %}<span class="badge b-error">{{ s.n_error }}</span>{% else %}0{% endif %}</td>
     <td class="small">{{ s.last_checked | dt }}<div class="muted">elke {{ s.interval_minutes }} min</div></td>
-    <td><form class="inline" method="post" action="/sources/{{ s.id }}/check"><button class="btn small">Nu controleren</button></form></td>
+    <td style="white-space:nowrap">
+      <form class="inline" method="post" action="/sources/{{ s.id }}/check"><button class="btn small">Controleren</button></form>
+      <form class="inline" method="post" action="/sources/{{ s.id }}/toggle"><button class="btn small">{{ 'Pauzeren' if s.enabled else 'Hervatten' }}</button></form>
+      <form class="inline" method="post" action="/sources/{{ s.id }}/delete" onsubmit="return confirm('Bron {{ s.name }} verwijderen? Gedownloade bestanden blijven staan.')"><button class="btn small">Verwijderen</button></form>
+    </td>
   </tr>
   {% endfor %}
 </table>

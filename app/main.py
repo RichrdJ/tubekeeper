@@ -164,6 +164,20 @@ def check_source(source_id: int):
     return back(f"/sources/{source_id}")
 
 
+@app.post("/sources/{source_id}/toggle")
+async def toggle_source(request: Request, source_id: int):
+    _source_or_404(source_id)
+    db.execute("UPDATE sources SET enabled = 1 - enabled WHERE id = ?", (source_id,))
+    worker.wake_downloads()
+    return back(request.headers.get("referer") or f"/sources/{source_id}")
+
+
+@app.post("/sources/{source_id}/clear-queue")
+def clear_queue(source_id: int):
+    db.execute("UPDATE media SET status = 'skipped' WHERE source_id = ? AND status = 'pending'", (source_id,))
+    return back(f"/sources/{source_id}")
+
+
 @app.post("/sources/{source_id}/retry")
 def retry_errors(source_id: int):
     db.execute("UPDATE media SET status = 'pending', error = NULL WHERE source_id = ? AND status = 'error'",

@@ -34,6 +34,8 @@ _forced_lock = threading.Lock()
 CHANNEL_RE = re.compile(
     r"^https?://(www\.|m\.)?youtube\.com/(@[^/]+|channel/[^/]+|c/[^/]+|user/[^/]+)/?$"
 )
+# Channel tabs list uploads newest first, so the first too-old item ends the scan
+CHANNEL_TAB_RE = re.compile(r"youtube\.com/.+/(videos|shorts|streams)/?$")
 LIVE_STATES = ("is_live", "is_upcoming", "post_live")
 
 
@@ -88,10 +90,26 @@ def _entry_date(entry):
 
 # --------------------------------------------------------------------------- indexing
 
+def _exact_date(url):
+    try:
+        with yt_dlp.YoutubeDL(_base_opts()) as ydl:
+            return ydl.extract_info(url, download=False, process=False).get("upload_date")
+    except Exception as e:  # noqa: BLE001 - the download step checks again
+        log.warning("Could not get date for %s: %s", url, e)
+        return None
+
+
 def index_source(src):
     state["indexing"] = src["name"]
-    first_run = src["last_checked"] is None
-    opts = _base_opts() | {"extract_flat": "in_playlist", "skip_download": True}
+    # Based on stored items, not last_checked: a failed first index must not count as done
+    first_run = db.one("SELECT 1 FROM media WHERE source_id = ? LIMIT 1", (src["id"],)) is None
+    opts = _base_opts() | {
+        "extract_flat": "in_playlist",
+        "skip_download": True,
+        # Flat channel listings carry no dates; this derives one from "3 weeks ago".
+        # That estimate is never older than the real date, so skipping on it is safe.
+        "extractor_args": {"youtubetab": {"approximate_date": ["true"]}},
+    }
     if not first_run and RECHECK_LIMIT > 0:
         opts["playlistend"] = RECHECK_LIMIT
     log.info("Indexing %s (%s)", src["name"], src["url"])
@@ -101,6 +119,9 @@ def index_source(src):
         entries = list(_flatten(info)) if info.get("entries") is not None else [info]
 
         new = 0
+        cutoff = src["only_after"]
+        ordered = bool(CHANNEL_TAB_RE.search(src["url"]))
+        cutoff_reached = False
         for entry in entries:
             vid = entry.get("id")
             if not vid or entry.get("live_status") in LIVE_STATES:
@@ -109,12 +130,21 @@ def index_source(src):
             url = entry.get("webpage_url") or entry.get("url") or ""
             if not url.startswith("http"):
                 url = f"https://www.youtube.com/watch?v={vid}"
+            if db.one("SELECT 1 FROM media WHERE source_id = ? AND video_id = ?", (src["id"], vid)):
+                continue
             upload_date = _entry_date(entry)
             status = "pending"
             if first_run and not src["backfill"]:
                 status = "skipped"
-            if src["only_after"] and upload_date and upload_date < src["only_after"]:
+            elif cutoff_reached:
                 status = "skipped"
+            elif cutoff:
+                if not upload_date and ordered:
+                    # YouTube sometimes omits the "3 weeks ago" text; look the date up
+                    upload_date = _exact_date(url)
+                if upload_date and upload_date < cutoff:
+                    status = "skipped"
+                    cutoff_reached = ordered
             cur = db.execute(
                 "INSERT OR IGNORE INTO media (source_id, video_id, title, url, upload_date, status, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -208,9 +238,8 @@ def download_one(media):
     src = db.one("SELECT * FROM sources WHERE id = ?", (media["source_id"],))
     if not src:
         return
-    db.execute("UPDATE media SET status = 'downloading', error = NULL WHERE id = ?", (media["id"],))
     current = {"id": media["id"], "title": media["title"] or media["video_id"],
-               "source": src["name"], "progress": "0%", "speed": "", "eta": ""}
+               "source": src["name"], "progress": "controleren…", "speed": "", "eta": ""}
     state["current"] = current
     result = {}
 
@@ -239,13 +268,15 @@ def download_one(media):
             title = info.get("title") or media["title"]
             current["title"] = title
             if src["only_after"] and upload_date and upload_date < src["only_after"]:
+                log.info("Skipping %s: uploaded %s, before %s", title, upload_date, src["only_after"])
                 db.execute(
                     "UPDATE media SET status = 'skipped', title = ?, upload_date = ? WHERE id = ?",
                     (title, upload_date, media["id"]),
                 )
                 return
-            db.execute("UPDATE media SET title = ?, upload_date = ? WHERE id = ?",
-                       (title, upload_date, media["id"]))
+            db.execute("UPDATE media SET status = 'downloading', error = NULL, title = ?, upload_date = ? "
+                       "WHERE id = ?", (title, upload_date, media["id"]))
+            current["progress"] = "0%"
             ydl.process_ie_result(info, download=True)
         db.execute(
             "UPDATE media SET status = 'done', filepath = ?, downloaded_at = ? WHERE id = ?",

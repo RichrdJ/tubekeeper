@@ -6,6 +6,9 @@
   <h1>{{ src.name }} {% if not src.enabled %}<span class="badge">gepauzeerd</span>{% endif %}</h1>
   <div class="row">
     <form class="inline" method="post" action="/sources/{{ src.id }}/check"><button class="btn primary">Nu controleren</button></form>
+    <form class="inline" method="post" action="/sources/{{ src.id }}/toggle"><button class="btn">{{ '⏸ Pauzeren' if src.enabled else '▶ Hervatten' }}</button></form>
+    {% if counts.get('pending') %}<form class="inline" method="post" action="/sources/{{ src.id }}/clear-queue"
+      onsubmit="return confirm('Alle {{ counts.pending }} items in de wachtrij overslaan?')"><button class="btn">Wachtrij legen ({{ counts.pending }})</button></form>{% endif %}
     {% if counts.get('error') %}<form class="inline" method="post" action="/sources/{{ src.id }}/retry"><button class="btn">Fouten opnieuw proberen ({{ counts.error }})</button></form>{% endif %}
     {% if counts.get('skipped') %}<form class="inline" method="post" action="/sources/{{ src.id }}/download-skipped"
       onsubmit="return confirm('Alle {{ counts.skipped }} overgeslagen items downloaden?')"><button class="btn">Overgeslagen downloaden ({{ counts.skipped }})</button></form>{% endif %}
