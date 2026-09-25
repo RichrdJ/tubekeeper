@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS sources (
     name             TEXT NOT NULL,
     url              TEXT NOT NULL,
     channel_id       TEXT,
+    avatar_url       TEXT,
     kind             TEXT NOT NULL DEFAULT 'video',   -- video | audio
     quality          TEXT NOT NULL DEFAULT '1080',    -- best | 2160 | 1440 | 1080 | 720 | 480 | 360
     audio_format     TEXT NOT NULL DEFAULT 'm4a',
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS media (
     source_id     INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
     video_id      TEXT NOT NULL,
     title         TEXT,
+    description   TEXT,
     url           TEXT NOT NULL,
     upload_date   TEXT,
     status        TEXT NOT NULL DEFAULT 'pending',   -- pending | downloading | done | error | skipped | deleted
@@ -89,6 +91,10 @@ def init():
             c.execute("ALTER TABLE sources ADD COLUMN redownload_missing INTEGER NOT NULL DEFAULT 0")
         if "lang_detected" not in columns:
             c.execute("ALTER TABLE sources ADD COLUMN lang_detected TEXT")
+        if "avatar_url" not in columns:
+            c.execute("ALTER TABLE sources ADD COLUMN avatar_url TEXT")
+        if "description" not in {r["name"] for r in c.execute("PRAGMA table_info(media)")}:
+            c.execute("ALTER TABLE media ADD COLUMN description TEXT")
         # Downloads interrupted by a restart go back into the queue
         c.execute("UPDATE media SET status = 'pending' WHERE status = 'downloading'")
 

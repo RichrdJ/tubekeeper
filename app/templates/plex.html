@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Plex · TubeKeeper{% endblock %}
+{% block content %}
+<h1>Plex</h1>
+{% if msg %}<p class="card {{ 'err' if msg.startswith('✗') }}">{{ msg }}</p>{% endif %}
+<p class="muted small" style="max-width:760px">Plex toont bij YouTube-video's standaard "Aflevering 09-20" in plaats van de titel.
+Met deze koppeling zet TubeKeeper de originele titel, beschrijving, uploaddatum en het kanaallogo rechtstreeks in Plex,
+en vergrendelt ze zodat Plex ze niet overschrijft. Na elke download vraagt TubeKeeper Plex ook om te scannen.</p>
+
+<form method="post" action="/plex" class="card">
+  <div class="grid">
+    <label>Plex-adres<input name="plex_url" value="{{ s.plex_url }}" placeholder="http://10.0.0.22:32400"></label>
+    <label>Plex-token<input type="password" name="plex_token" value="{{ s.plex_token }}" autocomplete="off"></label>
+    <label>Bibliotheek (tv-programma's)
+      <select name="plex_section" {{ 'disabled' if not libs }}>
+        {% if not libs %}<option value="">eerst adres en token opslaan</option>{% endif %}
+        {% for key, title in libs %}<option value="{{ key }}" {{ 'selected' if s.plex_section == key }}>{{ title }}</option>{% endfor %}
+      </select></label>
+  </div>
+  {% if error %}<p class="err">✗ Kan Plex niet bereiken: {{ error }}</p>{% endif %}
+  <details style="margin-top:10px"><summary>Waar vind ik mijn Plex-token?</summary>
+    <ol class="small">
+      <li>Open Plex in je browser en ga naar een willekeurige aflevering.</li>
+      <li>Klik op <strong>⋯ → Info opvragen</strong> (Get Info) en daarna op <strong>XML weergeven</strong> (View XML).</li>
+      <li>In de adresbalk staat aan het eind <code>X-Plex-Token=…</code>: kopieer de tekst na het <code>=</code>.</li>
+    </ol>
+    <p class="muted small">Het token wordt alleen op je eigen server opgeslagen. Het geeft toegang tot je Plex-server, deel het niet.</p>
+  </details>
+  <div class="row" style="margin-top:12px"><button class="btn primary">Opslaan</button></div>
+</form>
+
+{% if libs and s.plex_section %}
+<h2>Bijwerken</h2>
+<div class="card row" style="justify-content:space-between">
+  <div class="small">Automatisch na elke download en elke 10 minuten.
+    {% if state.last_sync %}<br><span class="muted">Laatst: {{ state.last_sync | ts }} — {{ state.last_result }}</span>{% endif %}</div>
+  <form method="post" action="/plex/sync"><button class="btn primary">Nu bijwerken</button></form>
+</div>
+{% endif %}
+{% endblock %}

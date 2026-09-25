@@ -27,6 +27,11 @@ Seizoen = uploadjaar, aflevering = maand+dag+volgnummer, dus Plex sorteert op up
 Per bron kun je ook kiezen voor één map met de datum in de bestandsnaam. Wissel je van indeling
 of hernoem je een bron, dan worden bestaande bestanden automatisch verplaatst.
 
+## Plex-koppeling (titels in Plex)
+Plex' agent *Personal Media Shows* toont afleveringen als "Aflevering 09-20". Vul onder **Plex** in TubeKeeper
+je Plex-adres en token in en kies de bibliotheek: TubeKeeper zet dan per aflevering de originele titel,
+beschrijving en uploaddatum (vergrendeld) en het kanaallogo als poster, en laat Plex na elke download scannen.
+
 ## Plex instellen
 1. **Bibliotheek toevoegen → TV-programma's**, map: je `/downloads`-map.
 2. **Geavanceerd**: Scanner *Plex Series Scanner*, Agent *Personal Media Shows*.

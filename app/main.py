@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import db, notify, subs, worker
+from . import db, notify, plex, subs, worker
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -23,6 +23,7 @@ AUDIO_FORMATS = ["m4a", "mp3", "opus"]
 async def lifespan(_app):
     db.init()
     worker.start()
+    plex.start()
     yield
 
 
@@ -364,6 +365,30 @@ async def import_settings(request: Request):
     subs.save_defaults(_settings_from_form(form))
     subs.set_sync(bool(form.get("sync")))
     return back("/import?" + urllib.parse.urlencode({"msg": "✓ Opgeslagen"}))
+
+
+@app.get("/plex")
+def plex_page(request: Request, msg: str = ""):
+    s = plex.settings()
+    libs, error = [], ""
+    if s["plex_url"] and s["plex_token"]:
+        try:
+            libs = plex.sections(s)
+        except Exception as e:  # noqa: BLE001 - shown on the page
+            error = str(e)
+    return render(request, "plex.html", s=s, libs=libs, error=error, msg=msg, state=plex.state)
+
+
+@app.post("/plex")
+async def plex_save(request: Request):
+    form = await request.form()
+    plex.save({k: str(form.get(k, "")).strip() for k in plex.KEYS})
+    return back("/plex?" + urllib.parse.urlencode({"msg": "✓ Opgeslagen"}))
+
+
+@app.post("/plex/sync")
+def plex_sync():
+    return back("/plex?" + urllib.parse.urlencode({"msg": plex.run_sync()}))
 
 
 @app.get("/notifications")

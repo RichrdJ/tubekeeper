@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import yt_dlp
 
-from . import db, notify
+from . import db, notify, plex
 
 log = logging.getLogger("tubekeeper")
 
@@ -247,6 +247,9 @@ def index_source(src):
             "UPDATE sources SET last_checked = ?, last_error = NULL WHERE id = ?",
             (now_iso(), src["id"]),
         )
+        avatar = next((t.get("url") for t in info.get("thumbnails") or [] if t.get("id") == "avatar_uncropped"), None)
+        if avatar and avatar != src["avatar_url"]:
+            db.execute("UPDATE sources SET avatar_url = ? WHERE id = ?", (avatar, src["id"]))
         if info.get("channel_id") and info["channel_id"] != src["channel_id"]:
             db.execute("UPDATE sources SET channel_id = ? WHERE id = ?", (info["channel_id"], src["id"]))
         if src["layout"] == "series":
@@ -400,8 +403,8 @@ def download_one(media):
                     (title, upload_date, media["id"]),
                 )
                 return
-            db.execute("UPDATE media SET status = 'downloading', error = NULL, title = ?, upload_date = ? "
-                       "WHERE id = ?", (title, upload_date, media["id"]))
+            db.execute("UPDATE media SET status = 'downloading', error = NULL, title = ?, upload_date = ?, "
+                       "description = ? WHERE id = ?", (title, upload_date, info.get("description"), media["id"]))
             current["progress"] = "0%"
             if src["layout"] == "series" and upload_date:
                 episode = _episode_number(src, upload_date, media["id"])
@@ -414,6 +417,7 @@ def download_one(media):
         log.info("Finished %s", title)
         _size_cache.pop(source_dir(src), None)
         notify.notify("download", f"Gedownload: {src['name']}", title, media["url"])
+        plex.after_download()
         enforce_retention(src)
     except Exception as e:  # noqa: BLE001
         log.warning("Download of %s failed: %s", media["url"], e)
