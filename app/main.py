@@ -137,7 +137,7 @@ async def create_source(request: Request):
 
 
 @app.get("/sources/{source_id}")
-def source_detail(request: Request, source_id: int, status: str = "", saved: int = 0):
+def source_detail(request: Request, source_id: int, status: str = "", saved: int = 0, msg: str = ""):
     src = _source_or_404(source_id)
     sql = "SELECT * FROM media WHERE source_id = ?"
     args = [source_id]
@@ -148,7 +148,7 @@ def source_detail(request: Request, source_id: int, status: str = "", saved: int
     counts = {r["status"]: r["n"] for r in db.query(
         "SELECT status, COUNT(*) AS n FROM media WHERE source_id = ? GROUP BY status", (source_id,))}
     return render(request, "source.html", src=src, media=db.query(sql, args),
-                  counts=counts, status=status, size=worker.disk_usage(src), saved=saved)
+                  counts=counts, status=status, size=worker.disk_usage(src), saved=saved, msg=msg)
 
 
 @app.get("/sources/{source_id}/edit")
@@ -224,20 +224,52 @@ def download_skipped(source_id: int):
     return back(f"/sources/{source_id}")
 
 
+def _apply_media_action(m, action):
+    """Returns True when the item changed; actions that don't fit the status are ignored."""
+    if action == "download" and m["status"] in ("skipped", "error", "deleted"):
+        db.execute("UPDATE media SET status = 'pending', error = NULL WHERE id = ?", (m["id"],))
+    elif action == "skip" and m["status"] in ("pending", "error"):
+        db.execute("UPDATE media SET status = 'skipped' WHERE id = ?", (m["id"],))
+    elif action == "delete" and m["status"] == "done":
+        worker.delete_files(m["filepath"])
+        db.execute("UPDATE media SET status = 'deleted' WHERE id = ?", (m["id"],))
+    else:
+        return False
+    return True
+
+
+def _back_to_source(source_id, form, msg=""):
+    params = {k: v for k, v in (("status", str(form.get("status", ""))), ("msg", msg)) if v}
+    return back(f"/sources/{source_id}" + ("?" + urllib.parse.urlencode(params) if params else ""))
+
+
+@app.post("/sources/{source_id}/bulk")
+async def bulk_media(request: Request, source_id: int):
+    _source_or_404(source_id)
+    form = await request.form()
+    action = str(form.get("action", ""))
+    ids = [int(i) for i in form.getlist("ids") if str(i).isdigit()]
+    changed = 0
+    for media_id in ids:
+        m = db.one("SELECT * FROM media WHERE id = ? AND source_id = ?", (media_id, source_id))
+        if m and _apply_media_action(m, action):
+            changed += 1
+    if action == "download" and changed:
+        worker.wake_downloads()
+    label = {"download": "in de wachtrij gezet", "skip": "overgeslagen", "delete": "verwijderd"}.get(action, "bijgewerkt")
+    skipped = len(ids) - changed
+    msg = f"✓ {changed} video's {label}" + (f" ({skipped} niet van toepassing)" if skipped else "")
+    return _back_to_source(source_id, form, msg)
+
+
 @app.post("/media/{media_id}/{action}")
-def media_action(media_id: int, action: str):
+async def media_action(request: Request, media_id: int, action: str):
     m = db.one("SELECT * FROM media WHERE id = ?", (media_id,))
     if not m:
         raise HTTPException(404)
-    if action == "download" and m["status"] != "downloading":
-        db.execute("UPDATE media SET status = 'pending', error = NULL WHERE id = ?", (media_id,))
+    if _apply_media_action(m, action) and action == "download":
         worker.wake_downloads()
-    elif action == "skip" and m["status"] in ("pending", "error"):
-        db.execute("UPDATE media SET status = 'skipped' WHERE id = ?", (media_id,))
-    elif action == "delete" and m["status"] == "done":
-        worker.delete_files(m["filepath"])
-        db.execute("UPDATE media SET status = 'deleted' WHERE id = ?", (media_id,))
-    return back(f"/sources/{m['source_id']}")
+    return _back_to_source(m["source_id"], await request.form())
 
 
 @app.get("/queue")

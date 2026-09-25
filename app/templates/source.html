@@ -29,12 +29,25 @@
   {% endfor %}
 </div>
 
+{% if msg %}<p class="card" style="border-color:var(--ok)">{{ msg }}</p>{% endif %}
 <div class="card scroll">
 {% if media %}
+<form method="post" action="/sources/{{ src.id }}/bulk" id="bulk">
+<input type="hidden" name="status" value="{{ status }}">
+<div id="bulkbar" class="row" style="display:none;position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:10;
+     background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:calc(100vw - 32px)">
+  <strong><span id="bulkcount">0</span> geselecteerd</strong>
+  <button class="btn primary small" name="action" value="download">⬇ Downloaden</button>
+  <button class="btn small" name="action" value="skip">Overslaan</button>
+  <button class="btn small" name="action" value="delete" onclick="return confirm('Bestanden van de geselecteerde gedownloade video\'s verwijderen?')">🗑 Bestand verwijderen</button>
+  <button type="button" class="btn small" onclick="selectAll(false)">Selectie wissen</button>
+</div>
 <table>
-  <tr><th>Datum</th><th>Titel</th><th>Status</th><th></th></tr>
+  <tr><th style="width:30px"><input type="checkbox" id="selall" title="Alles selecteren" onclick="selectAll(this.checked)"></th>
+      <th>Datum</th><th>Titel</th><th>Status</th><th></th></tr>
   {% for m in media %}
   <tr>
+    <td><input type="checkbox" name="ids" value="{{ m.id }}" class="sel"></td>
     <td class="small" style="white-space:nowrap">{{ m.upload_date | date }}</td>
     <td><a href="{{ m.url }}" target="_blank" rel="noopener">{{ m.title or m.video_id }}</a>
       {% if m.filepath and m.status == 'done' %}<div class="muted small">{{ m.filepath }}</div>{% endif %}
@@ -42,15 +55,36 @@
     <td><span class="badge b-{{ m.status }}">{{ m.status }}</span></td>
     <td style="white-space:nowrap">
       {% if m.status in ('skipped','error','deleted') %}
-        <form class="inline" method="post" action="/media/{{ m.id }}/download"><button class="btn small">Download</button></form>{% endif %}
+        <button class="btn small" formaction="/media/{{ m.id }}/download">Download</button>{% endif %}
       {% if m.status in ('pending','error') %}
-        <form class="inline" method="post" action="/media/{{ m.id }}/skip"><button class="btn small">Overslaan</button></form>{% endif %}
+        <button class="btn small" formaction="/media/{{ m.id }}/skip">Overslaan</button>{% endif %}
       {% if m.status == 'done' %}
-        <form class="inline" method="post" action="/media/{{ m.id }}/delete" onsubmit="return confirm('Bestand verwijderen?')"><button class="btn small">Verwijder bestand</button></form>{% endif %}
+        <button class="btn small" formaction="/media/{{ m.id }}/delete" onclick="return confirm('Bestand verwijderen?')">Verwijder bestand</button>{% endif %}
     </td>
   </tr>
   {% endfor %}
 </table>
+</form>
+<script>
+const boxes = [...document.querySelectorAll('input.sel')];
+let last = null;
+function refresh() {
+  const n = boxes.filter(b => b.checked).length;
+  document.getElementById('bulkcount').textContent = n;
+  document.getElementById('bulkbar').style.display = n ? 'flex' : 'none';
+  const all = document.getElementById('selall');
+  all.checked = n === boxes.length; all.indeterminate = n > 0 && n < boxes.length;
+}
+function selectAll(on) { boxes.forEach(b => b.checked = on); refresh(); }
+boxes.forEach((b, i) => b.addEventListener('click', e => {
+  if (e.shiftKey && last !== null) {  // shift-click selects the range since the previous click
+    const [a, z] = [Math.min(last, i), Math.max(last, i)];
+    for (let j = a; j <= z; j++) boxes[j].checked = b.checked;
+  }
+  last = i; refresh();
+}));
+refresh();
+</script>
 {% else %}
 <p class="muted">Nog geen items{% if not src.last_checked %} — de eerste controle loopt, ververs zo de pagina{% endif %}.</p>
 {% endif %}
