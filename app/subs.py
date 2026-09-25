@@ -19,7 +19,7 @@ SYNC_EVERY = 6 * 3600
 DEFAULTS = {
     "kind": "video", "quality": "1080", "audio_format": "m4a", "interval_minutes": 60,
     "only_after": None, "keep_last": None, "sub_langs": "", "lang": "", "layout": "series",
-    "backfill": 0, "enabled": 1,
+    "backfill": 0, "enabled": 1, "redownload_missing": 0,
 }
 
 
@@ -121,9 +121,9 @@ def add_channels(channels, settings):
             continue
         db.execute(
             "INSERT INTO sources (name, url, channel_id, kind, quality, audio_format, interval_minutes, "
-            "only_after, keep_last, sub_langs, lang, layout, backfill, enabled, created_at) "
+            "only_after, keep_last, sub_langs, lang, layout, backfill, enabled, redownload_missing, created_at) "
             "VALUES (:name, :url, :channel_id, :kind, :quality, :audio_format, :interval_minutes, "
-            ":only_after, :keep_last, :sub_langs, :lang, :layout, :backfill, :enabled, :created_at)",
+            ":only_after, :keep_last, :sub_langs, :lang, :layout, :backfill, :enabled, :redownload_missing, :created_at)",
             settings | {"name": c["title"], "url": c["url"], "channel_id": c["id"], "created_at": worker.now_iso()},
         )
         added += 1

@@ -251,6 +251,7 @@ def index_source(src):
             db.execute("UPDATE sources SET channel_id = ? WHERE id = ?", (info["channel_id"], src["id"]))
         if src["layout"] == "series":
             save_show_art(src, info)
+        sync_disk(src)
         if src["name"] == src["url"]:
             title = info.get("channel") or info.get("uploader") or info.get("title")
             if title:
@@ -494,6 +495,41 @@ def reorganize_async(source_id, old_dir=None):
         except Exception:  # noqa: BLE001
             log.exception("Reorganize failed")
     threading.Thread(target=run, daemon=True).start()
+
+
+MEDIA_FILE_RE = re.compile(r"\[([\w-]+)\]\.(mp4|mkv|webm|mov|m4a|mp3|opus|ogg|flac|wav)$", re.I)
+
+
+def sync_disk(src):
+    """Reconcile 'done' items with the files actually on disk (e.g. deleted or moved by hand).
+
+    Returns (relinked, missing, requeued)."""
+    on_disk = {}
+    for root, _dirs, files in os.walk(source_dir(src)):
+        for f in files:
+            m = MEDIA_FILE_RE.search(f)
+            if m:
+                on_disk[m.group(1)] = os.path.join(root, f)
+    relinked = missing = requeued = 0
+    for row in db.query("SELECT * FROM media WHERE source_id = ? AND status = 'done'", (src["id"],)):
+        if row["filepath"] and os.path.exists(row["filepath"]):
+            continue
+        found = on_disk.get(row["video_id"])
+        if found:
+            db.execute("UPDATE media SET filepath = ? WHERE id = ?", (found, row["id"]))
+            relinked += 1
+        elif src["redownload_missing"]:
+            db.execute("UPDATE media SET status = 'pending', filepath = NULL WHERE id = ?", (row["id"],))
+            requeued += 1
+        else:
+            db.execute("UPDATE media SET status = 'deleted', filepath = NULL WHERE id = ?", (row["id"],))
+            missing += 1
+    if relinked or missing or requeued:
+        _size_cache.pop(source_dir(src), None)
+        log.info("Disk sync %s: %d relinked, %d missing, %d re-queued", src["name"], relinked, missing, requeued)
+        if requeued:
+            _download_wake.set()
+    return relinked, missing, requeued
 
 
 def enforce_retention(src):

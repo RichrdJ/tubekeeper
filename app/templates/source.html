@@ -6,6 +6,7 @@
   <div class="row">
     <form class="inline" method="post" action="/sources/{{ src.id }}/check"><button class="btn primary">Nu controleren</button></form>
     <a class="btn" href="/sources/{{ src.id }}/edit">⚙ Instellingen</a>
+    <form class="inline" method="post" action="/sources/{{ src.id }}/sync"><button class="btn" title="Controleer of gedownloade bestanden nog op schijf staan">⟳ Schijf synchroniseren</button></form>
     <form class="inline" method="post" action="/sources/{{ src.id }}/toggle"><button class="btn">{{ '⏸ Pauzeren' if src.enabled else '▶ Hervatten' }}</button></form>
     {% if counts.get('pending') %}<form class="inline" method="post" action="/sources/{{ src.id }}/clear-queue"
       onsubmit="return confirm('Alle {{ counts.pending }} items in de wachtrij overslaan?')"><button class="btn">Wachtrij legen ({{ counts.pending }})</button></form>{% endif %}
@@ -19,7 +20,8 @@
 <p class="muted small">Elke {{ src.interval_minutes }} min · {{ 'Audio' if src.kind == 'audio' else ('Beste' if src.quality == 'best' else src.quality ~ 'p') }}
   {%- if src.only_after %} · vanaf {{ src.only_after | date }}{% endif %}
   {%- if src.keep_last %} · bewaart nieuwste {{ src.keep_last }}{% endif %}
-  · {{ 'Plex-serie' if src.layout == 'series' else 'één map' }}</p>
+  · {{ 'Plex-serie' if src.layout == 'series' else 'één map' }}
+  {%- if src.redownload_missing %} · verwijderde bestanden worden opnieuw gedownload{% endif %}</p>
 {% if src.last_error %}<p class="err">⚠ {{ src.last_error }}</p>{% endif %}
 
 <div class="tabs" style="margin:16px 0">

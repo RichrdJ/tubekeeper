@@ -2,7 +2,8 @@
 {% from "_form.html" import source_form %}
 {% block content %}
 <div class="row" style="justify-content:space-between"><h1>Bronnen</h1>
-  <a class="btn" href="/import">Abonnementen importeren</a></div>
+  <div class="row"><form class="inline" method="post" action="/sync"><button class="btn">⟳ Schijf synchroniseren</button></form>
+  <a class="btn" href="/import">Abonnementen importeren</a></div></div>
 {% if msg %}<p class="card">{{ msg }}</p>{% endif %}
 <div class="card scroll">
 {% if sources %}

@@ -26,6 +26,7 @@
       <datalist id="langs"><option value="nl"><option value="en"><option value="de"><option value="fr"><option value="es"></datalist></label>
     <label>Ondertitels (talen)<input name="sub_langs" value="{{ s.sub_langs if s else '' }}" placeholder="bv. nl,en"></label>
     <label class="check"><input type="checkbox" name="backfill" {{ 'checked' if s and s.backfill }}>Bestaande video's ook downloaden</label>
+    <label class="check"><input type="checkbox" name="redownload_missing" {{ 'checked' if s and s.redownload_missing }}>Handmatig verwijderde video's opnieuw downloaden</label>
     <label class="check"><input type="checkbox" name="enabled" {{ 'checked' if not s or s.enabled }}>Actief</label>
 {% endmacro %}
 

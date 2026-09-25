@@ -90,6 +90,7 @@ def _settings_from_form(form):
         "layout": "series" if form.get("layout") == "series" else "flat",
         "backfill": 1 if form.get("backfill") else 0,
         "enabled": 1 if form.get("enabled") else 0,
+        "redownload_missing": 1 if form.get("redownload_missing") else 0,
     }
 
 
@@ -127,9 +128,9 @@ async def create_source(request: Request):
     s = await _source_from_form(request)
     cur = db.execute(
         "INSERT INTO sources (name, url, kind, quality, audio_format, interval_minutes, only_after, "
-        "keep_last, sub_langs, lang, layout, backfill, enabled, created_at) "
+        "keep_last, sub_langs, lang, layout, backfill, enabled, redownload_missing, created_at) "
         "VALUES (:name, :url, :kind, :quality, :audio_format, :interval_minutes, :only_after, "
-        ":keep_last, :sub_langs, :lang, :layout, :backfill, :enabled, :created_at)",
+        ":keep_last, :sub_langs, :lang, :layout, :backfill, :enabled, :redownload_missing, :created_at)",
         s | {"created_at": worker.now_iso()},
     )
     worker.request_check(cur.lastrowid)
@@ -164,7 +165,7 @@ async def update_source(request: Request, source_id: int):
         "UPDATE sources SET name = :name, url = :url, kind = :kind, quality = :quality, "
         "audio_format = :audio_format, interval_minutes = :interval_minutes, only_after = :only_after, "
         "keep_last = :keep_last, sub_langs = :sub_langs, lang = :lang, layout = :layout, "
-        "backfill = :backfill, enabled = :enabled "
+        "backfill = :backfill, enabled = :enabled, redownload_missing = :redownload_missing "
         "WHERE id = :id",
         s | {"id": source_id},
     )
@@ -207,6 +208,27 @@ async def toggle_source(request: Request, source_id: int):
 def clear_queue(source_id: int):
     db.execute("UPDATE media SET status = 'skipped' WHERE source_id = ? AND status = 'pending'", (source_id,))
     return back(f"/sources/{source_id}")
+
+
+def _sync_message(results):
+    relinked, missing, requeued = (sum(r[i] for r in results) for i in range(3))
+    if not (relinked or missing or requeued):
+        return "✓ Schijf gesynchroniseerd: alles klopt"
+    parts = [f"{missing} verwijderd" if missing else "", f"{requeued} opnieuw in de wachtrij" if requeued else "",
+             f"{relinked} verplaatst en teruggevonden" if relinked else ""]
+    return "✓ Schijf gesynchroniseerd: " + ", ".join(p for p in parts if p)
+
+
+@app.post("/sources/{source_id}/sync")
+def sync_source(source_id: int):
+    msg = _sync_message([worker.sync_disk(_source_or_404(source_id))])
+    return back(f"/sources/{source_id}?" + urllib.parse.urlencode({"msg": msg}))
+
+
+@app.post("/sync")
+def sync_all():
+    msg = _sync_message([worker.sync_disk(s) for s in db.query("SELECT * FROM sources")])
+    return back("/?" + urllib.parse.urlencode({"msg": msg}))
 
 
 @app.post("/sources/{source_id}/retry")
