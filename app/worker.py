@@ -339,6 +339,18 @@ def _download_opts(src, progress_hook, pp_hook):
     return opts
 
 
+# Post-processing steps as shown in the UI
+PP_STEPS = {
+    "Merger": "video en audio samenvoegen…",
+    "ExtractAudio": "audio omzetten…",
+    "EmbedSubtitle": "ondertitels insluiten…",
+    "ThumbnailsConvertor": "thumbnail omzetten…",
+    "Metadata": "metadata schrijven…",
+    "EmbedThumbnail": "thumbnail insluiten…",
+    "MoveFiles": "bestand verplaatsen…",
+}
+
+
 def download_one(media):
     src = db.one("SELECT * FROM sources WHERE id = ?", (media["source_id"],))
     if not src:
@@ -355,8 +367,12 @@ def download_one(media):
             current["eta"] = (d.get("_eta_str") or "").strip()
         elif d["status"] == "finished":
             current["progress"] = "verwerken…"
+            current["speed"] = current["eta"] = ""
 
     def pp_hook(d):
+        if d["status"] == "started":
+            current["progress"] = PP_STEPS.get(d.get("postprocessor"), "verwerken…")
+            current["speed"] = current["eta"] = ""
         if d["status"] == "finished" and d.get("info_dict", {}).get("filepath"):
             result["path"] = d["info_dict"]["filepath"]
 

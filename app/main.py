@@ -33,7 +33,10 @@ templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "t
 def _fmt_dt(value):
     if not value:
         return "—"
-    return datetime.fromisoformat(value).astimezone().strftime("%d-%m-%Y %H:%M")
+    try:
+        return datetime.fromisoformat(value).astimezone().strftime("%d-%m-%Y %H:%M")
+    except ValueError:
+        return "—"
 
 
 def _fmt_date(value):
@@ -400,7 +403,9 @@ async def test_notification(request: Request, service: str):
 
 @app.get("/api/status")
 def api_status():
-    pending = db.one("SELECT COUNT(*) AS n FROM media WHERE status = 'pending'")["n"]
+    # Same rule as the queue page: paused sources don't count
+    pending = db.one("SELECT COUNT(*) AS n FROM media m JOIN sources s ON s.id = m.source_id "
+                     "WHERE m.status = 'pending' AND s.enabled = 1")["n"]
     return {"indexing": worker.state["indexing"], "current": worker.state["current"], "pending": pending}
 
 

@@ -2,6 +2,11 @@
 {% block title %}Wachtrij · TubeKeeper{% endblock %}
 {% block content %}
 <h1>Wachtrij</h1>
+<div id="now" class="card" style="margin-bottom:16px;border-color:var(--info)" hidden>
+  <div class="muted small">Nu bezig · <span id="now-source"></span></div>
+  <div style="font-size:16px;margin:4px 0"><strong id="now-title"></strong></div>
+  <div class="small" id="now-step"></div>
+</div>
 <div class="card scroll">
 {% if pending %}
 <table>
@@ -11,7 +16,7 @@
       <td>{{ m.title or m.video_id }}</td></tr>
   {% endfor %}
 </table>
-{% else %}<p class="muted">De wachtrij is leeg.</p>{% endif %}
+{% else %}<p class="muted">Er wacht niets meer. Een download die nu bezig is staat hierboven.</p>{% endif %}
 </div>
 
 <h2>Recent</h2>

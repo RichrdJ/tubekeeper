@@ -61,7 +61,17 @@ async function poll() {
     const parts = [];
     if (s.indexing) parts.push('🔎 ' + s.indexing);
     if (s.current) parts.push('⬇️ ' + s.current.title + ' — ' + s.current.progress + (s.current.speed ? ' @ ' + s.current.speed : ''));
-    parts.push(s.pending + ' in wachtrij');
+    parts.push((s.current ? '1 bezig, ' : '') + s.pending + ' in wachtrij');
+    const now = document.getElementById('now');  // queue page
+    if (now) {
+      now.hidden = !s.current;
+      if (s.current) {
+        document.getElementById('now-title').textContent = s.current.title;
+        document.getElementById('now-source').textContent = s.current.source;
+        document.getElementById('now-step').textContent = s.current.progress
+          + (s.current.speed ? ' · ' + s.current.speed : '') + (s.current.eta ? ' · nog ' + s.current.eta : '');
+      }
+    }
     document.getElementById('status').textContent = parts.join('  ·  ');
   } catch (e) {}
 }
